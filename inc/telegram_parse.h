@@ -168,4 +168,23 @@ void telegram_parse_messages(void *teleCtx, const char *buffer, telegram_on_msg_
 * @return string representation of the JSON object
 */
 char *telegram_make_kbrd(telegram_kbrd_t *kbrd);
+
+/**
+* @brief Get a message from telegram_update_t structure
+*
+* @param src where search for a message
+*
+* @retrun message or NULL
+*/
+telegram_chat_message_t *telegram_get_message(telegram_update_t *src);
+
+
+/**
+* @brief Get chat id or user id from the telegram_chat_message_t structure
+*
+* @param msg where search for an id
+*
+* @retrun id or -1 - no id found
+*/
+telegram_int_t telegram_get_chat_id(telegram_chat_message_t *msg);
 #endif /* TELEGRAM_PARSE */
