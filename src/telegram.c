@@ -28,6 +28,7 @@ typedef struct
 	int32_t last_update_id;
 	bool stop;
 	TimerHandle_t timer;
+	TaskHandle_t task;
 	bool is_timer;
 	telegram_on_msg_cb_t on_msg_cb;
 } telegram_ctx_t;
@@ -90,9 +91,6 @@ static void telegram_task(void * param)
 	telegram_ctx_t *teleCtx = (telegram_ctx_t *)param;
 
     ESP_LOGI(TAG, "Start... %s", 	teleCtx->token );
-	teleCtx->timer = xTimerCreate("TelegramTimer", TIMER_INTERVAL_MSEC / portTICK_RATE_MS,
-        pdTRUE, teleCtx, telegram_timer_cb);
-	xTimerStart(teleCtx->timer, 0);
 
 	while(!teleCtx->stop)
 	{
@@ -104,7 +102,6 @@ static void telegram_task(void * param)
 		vTaskDelay(1);
 	}
 
-	free(teleCtx->token);
 }
 
 void telegram_stop(void *teleCtx_ptr)
@@ -118,6 +115,12 @@ void telegram_stop(void *teleCtx_ptr)
 
 	teleCtx = (telegram_ctx_t *)teleCtx_ptr;
 	teleCtx->stop = true;	
+	xTimerStop(teleCtx->timer, 0);
+	vTaskDelay(portTICK_RATE_MS);
+	vTaskDelete(teleCtx->task);
+	xTimerDelete(teleCtx->timer, 0);
+	free(teleCtx->token);
+	free(teleCtx);
 }
 
 void *telegram_init(const char *token, telegram_on_msg_cb_t on_msg_cb)
@@ -134,7 +137,10 @@ void *telegram_init(const char *token, telegram_on_msg_cb_t on_msg_cb)
 	{
 		teleCtx->token = strdup(token);
 		teleCtx->on_msg_cb = on_msg_cb;
-		xTaskCreate(&telegram_task, "telegram_task", 8192, teleCtx, 5, NULL);
+		teleCtx->timer = xTimerCreate("TelegramTimer", TIMER_INTERVAL_MSEC / portTICK_RATE_MS,
+        	pdTRUE, teleCtx, telegram_timer_cb);
+		xTimerStart(teleCtx->timer, 0);
+		xTaskCreate(&telegram_task, "telegram_task", 8192, teleCtx, 5, &teleCtx->task);
 	}
 
 	return teleCtx;
