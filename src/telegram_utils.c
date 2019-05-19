@@ -20,6 +20,21 @@ telegram_chat_message_t *telegram_get_message(telegram_update_t *src)
 	return NULL;
 }
 
+telegram_int_t telegram_get_user_id(telegram_chat_message_t *msg)
+{
+	if (msg == NULL)
+	{
+		return -1;
+	}
+	
+	if (msg->from != NULL)
+	{
+		return msg->from->id;
+	}
+
+	return -1;
+}
+
 telegram_int_t telegram_get_chat_id(telegram_chat_message_t *msg)
 {
 	if (msg == NULL)
@@ -27,16 +42,10 @@ telegram_int_t telegram_get_chat_id(telegram_chat_message_t *msg)
 		return -1;
 	}
 
-	if (msg->from != NULL)
-	{
-		return msg->from->id;
-	}
-
 	if (msg->chat != NULL)
 	{
 		return msg->chat->id;
 	}
 
-
-	return -1;
+	return telegram_get_user_id(msg);
 }

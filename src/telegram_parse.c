@@ -323,6 +323,12 @@ static telegram_chat_message_t *telegram_parse_message(cJSON *subitem)
 		msg->file = telegram_parse_file(val);
 	}
 
+	val = cJSON_GetObjectItem(subitem, "caption");
+	if (val != NULL)
+	{
+		msg->caption = val->valuestring;
+	}
+
 	return msg;
 }
 
@@ -608,4 +614,40 @@ void telegram_parse_messages(void *teleCtx, const char *buffer, telegram_on_msg_
 	}
 
 	cJSON_Delete(json);
+}
+
+char *telegram_parse_file_path(const char *buffer)
+{
+	char *ret = NULL;
+	cJSON *json = NULL;
+	cJSON *ok_item = NULL;
+
+	if (buffer == NULL)
+	{
+		return NULL;
+	}
+
+	json = cJSON_Parse(buffer);
+	if (json == NULL)
+	{
+		return NULL;
+	}
+
+	ok_item = cJSON_GetObjectItem(json, "ok");
+	if  ((ok_item != NULL) && (cJSON_IsBool(ok_item) && (ok_item->valueint)))
+	{
+		cJSON *file_info = cJSON_GetObjectItem(json, "result");
+		if (file_info != NULL)
+		{
+			cJSON *file_path = cJSON_GetObjectItem(file_info, "file_path");
+
+			if (file_path != NULL)
+			{
+				ret = strdup(file_path->valuestring);
+			}
+		}
+	}
+
+	cJSON_Delete(json);
+	return ret;
 }

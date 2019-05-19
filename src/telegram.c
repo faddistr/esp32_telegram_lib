@@ -16,9 +16,12 @@
 #define TELEGRAM_GET_MESSAGE_POST_DATA_OFFSET_FMT TELEGRAM_GET_MESSAGE_POST_DATA_FMT"&offset=%d"
 #define TELEGRAM_GET_UPDATES_FMT TELEGRAM_SERVER"/bot%s/getUpdates?%s"
 #define TELEGRAM_SEND_MESSAGE_FMT  TELEGRAM_SERVER"/bot%s/sendMessage"
+#define TELEGRAM_GET_FILE_FMT  TELEGRAM_SERVER"/bot%s/getFile?file_id=%s"
 
 #define TELEGRMA_MSG_FMT "{\"chat_id\": \"%f\", \"text\": \"%s\"}"
 #define TELEGRMA_MSG_MARKUP_FMT "{\"chat_id\": \"%f\", \"text\": \"%s\", \"reply_markup\": {%s}}"
+
+#define TELEGRAM_FILE_PATH_FMT TELEGRAM_SERVER"/file/bot%s/%s"
 
 static const char *TAG="telegram_core";
 
@@ -70,7 +73,7 @@ static void telegram_getMessages(telegram_ctx_t *teleCtx)
 	}
 
 	snprintf(path, TELEGRAM_MAX_PATH, TELEGRAM_GET_UPDATES_FMT, teleCtx->token, post_data);
-	buffer = telegram_io_get(path, NULL);
+	buffer = telegram_io_get(path, NULL, NULL);
  	if (buffer != NULL)
  	{
  		telegram_parse_messages(teleCtx, buffer, telegram_process_message_int_cb);
@@ -193,6 +196,9 @@ static void telegram_send_message(void *teleCtx_ptr, telegram_int_t chat_id, con
 	free(payload);
 }
 
+
+
+
 void telegram_kbrd(void *teleCtx_ptr, telegram_int_t chat_id, const char *message, telegram_kbrd_t *kbrd)
 {
 	char *json_res = NULL;
@@ -215,4 +221,53 @@ void telegram_kbrd(void *teleCtx_ptr, telegram_int_t chat_id, const char *messag
 void telegram_send_text_message(void *teleCtx_ptr, telegram_int_t chat_id, const char *message)
 {
 	telegram_send_message(teleCtx_ptr, chat_id, message, NULL);
+}
+
+char *telegram_get_file_path(void *teleCtx_ptr, const char *file_id)
+{
+	char *buffer = NULL;
+	char *ret = NULL;
+	char *path = NULL;
+	telegram_ctx_t *teleCtx = NULL;
+
+	if (teleCtx_ptr == NULL)
+	{
+		ESP_LOGE(TAG, "Send message: Null argument");
+		return NULL;
+	}
+
+	teleCtx = (telegram_ctx_t *)teleCtx_ptr;
+
+	path = calloc(sizeof(char), strlen(TELEGRAM_GET_FILE_FMT) + strlen(teleCtx->token) + strlen(file_id) + 1);
+	if (path == NULL)
+	{
+		return NULL;
+	}
+
+	sprintf(path, TELEGRAM_GET_FILE_FMT, teleCtx->token, file_id);
+
+    ESP_LOGI(TAG, "Send getFile: %s", path);
+	buffer = telegram_io_get(path, NULL, NULL);
+ 	if (buffer != NULL)
+ 	{
+ 		char *str = telegram_parse_file_path(buffer);
+ 		ESP_LOGI(TAG, "%s %s", buffer, str);
+ 		free(buffer);
+
+ 		if (str != NULL)
+ 		{
+	 		ret = calloc(sizeof(char), strlen(str) + strlen(TELEGRAM_FILE_PATH_FMT) + strlen(teleCtx->token) + 1);
+	 		if (path == NULL)
+			{
+				free(str);
+				return NULL;
+			}
+
+			sprintf(ret, TELEGRAM_FILE_PATH_FMT, teleCtx->token, str);
+			free(str);
+		}
+ 	}
+
+	free(path);
+	return ret;
 }

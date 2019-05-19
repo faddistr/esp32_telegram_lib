@@ -7,7 +7,7 @@ typedef struct
 	const char *value;
 } telegram_io_header_t;
 
-char *telegram_io_get(const char *path, const char *post_data);
+char *telegram_io_get(const char *path, const char *post_data, telegram_io_header_t *header);
 /**
  header should be end with null key
 */

@@ -76,6 +76,7 @@ typedef struct telegram_chat_message
 	const char       *media_group_id; /** Opt. The unique identifier of a media message group this message belongs to */
 	const char       *author_signature; /** Opt. Signature of the post author for messages in channels */
 	const char       *text;     /** Opt. Text of the message */
+	const char       *caption;  /** Optional. Caption for the animation, audio, document, photo, video or voice, 0-1024 characters */
 	telegram_document_t *file; /** Opt. General file */
 } telegram_chat_message_t;
 
@@ -180,11 +181,30 @@ telegram_chat_message_t *telegram_get_message(telegram_update_t *src);
 
 
 /**
+* @brief Parse getFile answer and return file_path
+* Memory should be freed
+*
+* @param buffer where search for a file_path
+*
+* @retrun file_path or NULL
+*/
+char *telegram_parse_file_path(const char *buffer);
+
+/**
 * @brief Get chat id or user id from the telegram_chat_message_t structure
 *
-* @param msg where search for an id
+* @param msg where to search for an id
 *
 * @retrun id or -1 - no id found
 */
 telegram_int_t telegram_get_chat_id(telegram_chat_message_t *msg);
+
+/**
+* @brief Get user id from the telegram_chat_message_t structure
+*
+* @param msg where to search for an id
+*
+* @retrun id or -1 - no id found
+*/
+telegram_int_t telegram_get_user_id(telegram_chat_message_t *msg);
 #endif /* TELEGRAM_PARSE */

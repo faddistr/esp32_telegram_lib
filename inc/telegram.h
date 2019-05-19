@@ -16,4 +16,5 @@ void telegram_kbrd(void *teleCtx_ptr, telegram_int_t chat_id, const char *messag
 void telegram_send_text_message(void *teleCtx_ptr, telegram_int_t chat_id, const char *message);
 void *telegram_init(const char *token, telegram_on_msg_cb_t cb);
 void telegram_stop(void *teleCtx);
+char *telegram_get_file_path(void *teleCtx_ptr, const char *file_id);
 #endif // TELEGRAM_H

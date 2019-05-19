@@ -2,23 +2,27 @@
 #include <esp_log.h>
 #include <esp_http_client.h>
 #include "telegram_io.h"
+#define TELGRAM_DBG 0
 
 #define TELEGRAM_MAX_BUFFER 4095U
 
 static const char *TAG="telegram_io";
-
+#if TELGRAM_DBG == 1
 static esp_err_t telegram_http_event_handler(esp_http_client_event_t *evt);
+#endif
 
 static const esp_http_client_config_t telegram_io_http_cfg = 
 {
+#if TELGRAM_DBG == 1
         .event_handler = telegram_http_event_handler,
+#endif
         .timeout_ms = 5000,
         .url = "http://example.org",
 };
-
+#if TELGRAM_DBG == 1
 static esp_err_t telegram_http_event_handler(esp_http_client_event_t *evt)
 {
-    switch(evt->event_id) {
+    switch(evt->event_id) { 
         case HTTP_EVENT_ERROR:
             ESP_LOGI(TAG, "HTTP_EVENT_ERROR");
             break;
@@ -43,10 +47,9 @@ static esp_err_t telegram_http_event_handler(esp_http_client_event_t *evt)
     }
     return ESP_OK;
 }
+#endif
 
-
-
-char *telegram_io_get(const char *path, const char *post_data)
+char *telegram_io_get(const char *path, const char *post_data, telegram_io_header_t *header)
 {
     int data_read = 0;
     int total_data_read = 0; 
@@ -93,6 +96,22 @@ char *telegram_io_get(const char *path, const char *post_data)
             return NULL;
         }
     }
+
+    if (header)
+    {
+        uint32_t i = 0;
+
+        while (header[i].key)
+        {
+            err = esp_http_client_set_header(client, header[i].key, header[i].value);
+            if (err != ESP_OK)
+            {
+                ESP_LOGE(TAG, "Send message: esp_http_client_set_header failed err %d", err);
+                break;
+            }
+            i++;
+        }
+    }
     
     err = esp_http_client_open(client, 0);
     if (err != ESP_OK)
@@ -134,7 +153,14 @@ char *telegram_io_get(const char *path, const char *post_data)
             break;
         }
     }
-    
+
+//#if 1
+    if (buffer)
+    {
+        ESP_LOGI(TAG, "%s", buffer);
+    }
+//#endif 
+
     esp_http_client_close(client);
     esp_http_client_cleanup(client);
     return buffer;
