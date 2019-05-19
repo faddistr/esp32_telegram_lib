@@ -186,7 +186,7 @@ static void telegram_send_message(void *teleCtx_ptr, telegram_int_t chat_id, con
 	{
 		sprintf(payload, TELEGRMA_MSG_MARKUP_FMT, chat_id, message, additional_json);
 	} 
-    ESP_LOGI(TAG, "Send message: %s", payload);
+    ESP_LOGI(TAG, "Send message: %s %s", path, payload);
 
 	telegram_io_send(path, payload, (telegram_io_header_t *)sendHeaders); 
 	free(path);
