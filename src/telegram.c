@@ -17,6 +17,8 @@
 #define TELEGRAM_GET_UPDATES_FMT TELEGRAM_SERVER"/bot%s/getUpdates?%s"
 #define TELEGRAM_SEND_MESSAGE_FMT  TELEGRAM_SERVER"/bot%s/sendMessage"
 #define TELEGRAM_GET_FILE_FMT  TELEGRAM_SERVER"/bot%s/getFile?file_id=%s"
+#define TELEGRAM_SEND_FILE_FMT  TELEGRAM_SERVER"/bot%s/sendDocument"
+
 
 #define TELEGRMA_MSG_FMT "{\"chat_id\": \"%f\", \"text\": \"%s\"}"
 #define TELEGRMA_MSG_MARKUP_FMT "{\"chat_id\": \"%f\", \"text\": \"%s\", \"reply_markup\": {%s}}"
@@ -73,7 +75,7 @@ static void telegram_getMessages(telegram_ctx_t *teleCtx)
 	}
 
 	snprintf(path, TELEGRAM_MAX_PATH, TELEGRAM_GET_UPDATES_FMT, teleCtx->token, post_data);
-	buffer = telegram_io_get(path, NULL, NULL);
+	buffer = telegram_io_get(path, NULL);
  	if (buffer != NULL)
  	{
  		telegram_parse_messages(teleCtx, buffer, telegram_process_message_int_cb);
@@ -196,9 +198,6 @@ static void telegram_send_message(void *teleCtx_ptr, telegram_int_t chat_id, con
 	free(payload);
 }
 
-
-
-
 void telegram_kbrd(void *teleCtx_ptr, telegram_int_t chat_id, const char *message, telegram_kbrd_t *kbrd)
 {
 	char *json_res = NULL;
@@ -247,7 +246,7 @@ char *telegram_get_file_path(void *teleCtx_ptr, const char *file_id)
 	sprintf(path, TELEGRAM_GET_FILE_FMT, teleCtx->token, file_id);
 
     ESP_LOGI(TAG, "Send getFile: %s", path);
-	buffer = telegram_io_get(path, NULL, NULL);
+	buffer = telegram_io_get(path, NULL);
  	if (buffer != NULL)
  	{
  		char *str = telegram_parse_file_path(buffer);
@@ -271,3 +270,35 @@ char *telegram_get_file_path(void *teleCtx_ptr, const char *file_id)
 	free(path);
 	return ret;
 }
+
+#if 0
+#define TELEGRAM_BOUNDARY "simpleAsrf456BGe4h"
+#define TELEGRAM_BOUNDARY_CONTENT_FMT TELEGRAM_BOUNDARY"\r\nContent-Disposition: form-data; name=\"%s\""
+#define TELEGRAM_BOUNDARY_FILE_FMT TELEGRAM_BOUNDARY_CONTENT_FMT"; filename=\"%s\""
+
+//"Content-Type", "multipart/form-data; boundary="TELEGRAM_BOUNDARY
+void telegram_send_file(void *teleCtx_ptr, telegram_int_t chat_id, char *caption, void *ctx, send_file_cb_t cb)
+{
+
+	char *path = NULL;
+	char *payload = NULL;
+	telegram_ctx_t *teleCtx = NULL;
+
+	if (teleCtx_ptr == NULL)
+	{
+		ESP_LOGE(TAG, "Send file: Null argument");
+		return;
+	}
+
+	path = calloc(sizeof(char), strlen(TELEGRAM_SEND_FILE_FMT) + strlen(teleCtx->token) + 1);
+	if (path == NULL)
+	{
+		return NULL;
+	}
+
+	sprintf(path, TELEGRAM_SEND_FILE_FMT, teleCtx->token);
+
+	free(path);
+
+}
+#endif

@@ -17,4 +17,6 @@ void telegram_send_text_message(void *teleCtx_ptr, telegram_int_t chat_id, const
 void *telegram_init(const char *token, telegram_on_msg_cb_t cb);
 void telegram_stop(void *teleCtx);
 char *telegram_get_file_path(void *teleCtx_ptr, const char *file_id);
+typedef uint32_t(*send_file_cb_t)(void *ctx, uint8_t *buf, uint32_t max_size);
+//void telegram_send_file(void *teleCtx_ptr, telegram_int_t chat_id, char *caption, void *ctx, send_file_cb_t cb);
 #endif // TELEGRAM_H
