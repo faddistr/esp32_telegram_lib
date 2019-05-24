@@ -2,12 +2,12 @@
 #include <esp_log.h>
 #include <esp_http_client.h>
 #include "telegram_io.h"
-#define TELGRAM_DBG 1
+#define TELGRAM_DBG 0
 
 #define TELEGRAM_MAX_BUFFER 4095U
 
 
-#define min(x, y) (((x) < (y))?(x):(y))
+#define MIN(x, y) (((x) < (y))?(x):(y))
 
 static const char *TAG="telegram_io";
 #if TELGRAM_DBG == 1
@@ -99,7 +99,7 @@ static esp_err_t telegram_io_set_headers(esp_http_client_handle_t client, telegr
 {
     esp_err_t err = ESP_OK;
     int i = 0;
-    
+
     while (headers[i].key)
     {
         err = esp_http_client_set_header(client, headers[i].key, headers[i].value);
@@ -173,7 +173,7 @@ static char *telegram_io_send_data(const char *path, uint32_t total_len, telegra
 
     err = esp_http_client_open(client, len_to_send);
     if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Send file: esp_http_client_connect failed err %d", err);
+        ESP_LOGE(TAG, "esp_http_client_connect failed err %d", err);
         esp_http_client_cleanup(client);
         return NULL;
     }
@@ -209,12 +209,13 @@ static char *telegram_io_send_data(const char *path, uint32_t total_len, telegra
             return NULL;
         }
 
-
         while (total_len)
         {
-            max_size = min(total_len, TELEGRAM_MAX_BUFFER);
-            chunk_size = cb(ctx, (uint8_t *)buffer, chunk_size);
+            max_size = MIN(total_len, TELEGRAM_MAX_BUFFER);
+            chunk_size = cb(ctx, (uint8_t *)buffer, max_size);
 
+
+            ESP_LOGI(TAG, "chunk_size %d max_size %d total_len %d", chunk_size, max_size, total_len);
             if (chunk_size > max_size)
             {
                 err = ESP_ERR_INVALID_SIZE;
@@ -247,7 +248,7 @@ static char *telegram_io_send_data(const char *path, uint32_t total_len, telegra
     }
 
     if (err == ESP_OK)
-    {  
+    {
         esp_http_client_fetch_headers(client);
         response = telegram_io_read_all_content(client); 
     }
@@ -293,4 +294,73 @@ char *telegram_io_send_big(const char *path, uint32_t total_len, telegram_io_hea
     }
 
     return telegram_io_send_data(path, total_len, headers, HTTP_METHOD_POST, (char *)post_field, ctx, cb);
+}
+
+void telegram_io_read_file(const char *file_path, void *ctx, telegram_io_get_file_cb_t cb)
+{
+    esp_err_t err;
+    int total_len;
+    int data_read;
+    uint8_t *buffer;
+    uint32_t buffer_size;
+    esp_http_client_handle_t client;
+
+    client = esp_http_client_init(&telegram_io_http_cfg);
+    if (client == NULL)
+    {
+        ESP_LOGE(TAG, "Failed to init http client");
+        return; 
+    }
+
+    err = telegram_io_prepare(client, (char *)file_path, HTTP_METHOD_GET, NULL);
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "telegram_io_prepare failed err %d", err);
+        esp_http_client_cleanup(client);
+        return;
+    }
+
+    err = esp_http_client_open(client, 0);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "esp_http_client_connect failed err %d", err);
+        esp_http_client_cleanup(client);
+        return;
+    }
+
+    total_len = esp_http_client_fetch_headers(client);
+    if (total_len < 0)
+    {
+        ESP_LOGE(TAG, "esp_http_client_fetch_headers failed %d", total_len);
+        esp_http_client_cleanup(client);
+        return;   
+    }
+
+    buffer_size = MIN(total_len, TELEGRAM_MAX_BUFFER);
+    buffer = calloc(buffer_size, sizeof(uint8_t));
+    if (buffer == NULL)
+    {
+        ESP_LOGE(TAG, "No mem!");
+        esp_http_client_cleanup(client);
+        return;  
+    }
+
+    do
+    {
+        data_read = esp_http_client_read(client, (char *)buffer, buffer_size);
+        if (!cb(ctx, buffer, data_read, total_len))
+        {
+            break;
+        }
+
+        if (data_read < 0)
+        {
+            ESP_LOGE(TAG, "Data read error: %d", data_read);
+            break;
+        }
+
+    } while(data_read);
+
+    free(buffer);
+    esp_http_client_close(client);
+    esp_http_client_cleanup(client);  
 }
