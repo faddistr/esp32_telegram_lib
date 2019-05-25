@@ -247,9 +247,8 @@ static char *telegram_io_send_data(const char *path, uint32_t total_len, telegra
         free(buffer);
     }
 
-    if (err == ESP_OK)
-    {
-        esp_http_client_fetch_headers(client);
+    if ((err == ESP_OK) && (esp_http_client_fetch_headers(client) > 0))
+    {    
         response = telegram_io_read_all_content(client); 
     }
 
@@ -301,14 +300,21 @@ void telegram_io_read_file(const char *file_path, void *ctx, telegram_io_get_fil
     esp_err_t err;
     int total_len;
     int data_read;
-    uint8_t *buffer;
+    uint8_t *buffer = NULL;
     uint32_t buffer_size;
     esp_http_client_handle_t client;
+
+    if ((file_path == NULL) || (cb == NULL))
+    {
+        ESP_LOGE(TAG, "Wrong params");
+        return;    
+    }
 
     client = esp_http_client_init(&telegram_io_http_cfg);
     if (client == NULL)
     {
         ESP_LOGE(TAG, "Failed to init http client");
+        cb(ctx, buffer, -1, 0);
         return; 
     }
 
@@ -317,6 +323,7 @@ void telegram_io_read_file(const char *file_path, void *ctx, telegram_io_get_fil
     {
         ESP_LOGE(TAG, "telegram_io_prepare failed err %d", err);
         esp_http_client_cleanup(client);
+        cb(ctx, buffer, -1, 0);
         return;
     }
 
@@ -324,6 +331,7 @@ void telegram_io_read_file(const char *file_path, void *ctx, telegram_io_get_fil
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "esp_http_client_connect failed err %d", err);
         esp_http_client_cleanup(client);
+        cb(ctx, buffer, -1, 0);
         return;
     }
 
@@ -332,6 +340,7 @@ void telegram_io_read_file(const char *file_path, void *ctx, telegram_io_get_fil
     {
         ESP_LOGE(TAG, "esp_http_client_fetch_headers failed %d", total_len);
         esp_http_client_cleanup(client);
+        cb(ctx, buffer, -1, 0);
         return;   
     }
 
@@ -341,6 +350,7 @@ void telegram_io_read_file(const char *file_path, void *ctx, telegram_io_get_fil
     {
         ESP_LOGE(TAG, "No mem!");
         esp_http_client_cleanup(client);
+        cb(ctx, buffer, -1, 0);
         return;  
     }
 

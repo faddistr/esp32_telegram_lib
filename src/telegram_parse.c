@@ -438,6 +438,15 @@ static telegram_update_t *telegram_parse_update(cJSON *subitem)
 	if (val != NULL)
 	{
 		upd->id = val->valuedouble;
+	} else
+	{
+		val = cJSON_GetObjectItem(subitem, "message_id");
+		if (val != NULL)
+		{
+			upd->message = telegram_parse_message(subitem);
+		}
+
+		return upd;
 	}
 
 	val = cJSON_GetObjectItem(subitem, "message");
@@ -493,12 +502,22 @@ static void telegram_free_update_info(telegram_update_t **upd)
 
 static void telegram_process_messages(void *teleCtx, cJSON *messages, telegram_on_msg_cb_t cb)
 {
+	uint32_t num_messages = 1;
+	cJSON *subitem = messages;
+	telegram_update_t *upd = NULL;
 	uint32_t i;
 
-	for (i = 0 ; i < cJSON_GetArraySize(messages) ; i++)
+	if (cJSON_IsArray(messages))
 	{
-		cJSON *subitem = cJSON_GetArrayItem(messages, i);
-		telegram_update_t *upd = NULL;
+		num_messages = cJSON_GetArraySize(messages);
+	}
+
+	for (i = 0 ; i < num_messages; i++)
+	{
+		if (cJSON_IsArray(messages))
+		{
+			subitem = cJSON_GetArrayItem(messages, i);
+		}
 
 		if (subitem == NULL)
 		{
@@ -607,7 +626,7 @@ void telegram_parse_messages(void *teleCtx, const char *buffer, telegram_on_msg_
 	if  ((ok_item != NULL) && (cJSON_IsBool(ok_item) && (ok_item->valueint)))
 	{
 		cJSON *messages = cJSON_GetObjectItem(json, "result");
-		if ((messages != NULL) && cJSON_IsArray(messages))
+		if (messages != NULL)
 		{
 			telegram_process_messages(teleCtx, messages, cb);
 		}

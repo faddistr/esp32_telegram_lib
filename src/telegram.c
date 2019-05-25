@@ -395,3 +395,171 @@ void telegram_get_file(void *teleCtx_ptr, const char *file_id, void *ctx, telegr
 	telegram_io_read_file(file_path, ctx, cb);
 	free(file_path);
 }
+
+
+typedef struct 
+{
+	void *teleCtx;
+	void *user_ctx;
+	telegram_evt_cb_t user_cb;
+	uint32_t total_len;
+} telegram_send_data_e_t;
+
+static uint32_t telegram_send_file_e_cb(void *ctx, uint8_t *buf, uint32_t max_size)
+{
+	uint32_t write_size = 0;
+	telegram_send_data_e_t *hnd = (telegram_send_data_e_t *)ctx;
+	telegram_write_data_evt_t evt = {.buf = buf, .pice_size = max_size };
+
+	if (max_size > hnd->total_len)
+	{
+		evt.pice_size -= strlen(TELEGRAM_BOUNDARY_FTR);
+	}
+
+	write_size = hnd->user_cb(TELEGRAM_READ_DATA, hnd->teleCtx, hnd->user_ctx, &evt);
+
+	if (write_size > evt.pice_size)
+	{
+		ESP_LOGE(TAG, "write_size > size_to_send");
+		hnd->user_cb(TELEGRAM_ERR, hnd->teleCtx, hnd->user_ctx, NULL);
+		return 0;
+	}
+
+	hnd->total_len -= write_size;
+	if (evt.pice_size != max_size)
+	{
+		sprintf((char *)&buf[write_size], "%s", TELEGRAM_BOUNDARY_FTR);
+		write_size += strlen(TELEGRAM_BOUNDARY_FTR);
+	}
+
+	return write_size;
+}
+
+static void parse_response_result(void *teleCtx, telegram_update_t *info)
+{
+	telegram_send_data_e_t *hnd = (telegram_send_data_e_t *)teleCtx;
+
+	hnd->user_cb(TELEGRAM_RESPONSE, hnd->teleCtx, hnd->user_ctx, info);
+}
+
+static bool telegram_io_get_file_e_cb(void *ctx, uint8_t *buf, int size, int total_len)
+{
+	telegram_write_data_evt_t evt = {.buf = buf, .pice_size = (uint32_t)size, 
+		.total_size = (uint32_t)total_len};
+	telegram_send_data_e_t *hnd = (telegram_send_data_e_t *)ctx;
+
+	if ((size < 0) || (total_len == 0) || (buf == NULL))
+	{
+		hnd->user_cb(TELEGRAM_ERR, hnd->teleCtx, hnd->user_ctx, NULL);
+		return false;
+	}
+
+	if (0 == hnd->user_cb(TELEGRAM_WRITE_DATA, hnd->teleCtx, hnd->user_ctx, &evt))
+	{
+		return false;
+	}
+
+	return true;
+}
+
+void telegram_send_file_e(void *teleCtx_ptr, telegram_int_t chat_id, char *caption, char *filename, uint32_t total_len,
+	void *ctx, telegram_evt_cb_t cb)
+{
+	const telegram_io_header_t sendHeaders[] = 
+	{
+		{"Content-Type", "multipart/form-data; boundary="TELEGRAM_BOUNDARY_HDR}, 
+		{NULL, NULL}
+	};
+
+	char *path = NULL;
+	char *overhead = NULL;
+	char *response = NULL;
+	telegram_ctx_t *teleCtx = NULL;
+	telegram_send_data_e_t *ctx_e = NULL;
+
+	if ((teleCtx_ptr == NULL) || (cb == NULL) || (filename == NULL) || (total_len == 0))
+	{
+		ESP_LOGE(TAG, "Send file: Wrong argument");
+		return;	
+	}
+
+	teleCtx = (telegram_ctx_t *)teleCtx_ptr;
+	path = calloc(sizeof(char), strlen(TELEGRAM_SEND_FILE_FMT) + strlen(teleCtx->token) + 1);
+	if (path == NULL)
+	{
+		ESP_LOGE(TAG, "No mem (1)!");
+		return;
+	}
+
+	overhead = calloc(sizeof(char), strlen(caption) + strlen(filename) + TELEGRAM_INT_MAX_VAL_LENGTH 
+		+ 3 * strlen(TELEGRAM_BOUNDARY_CONTENT_FMT) + 2 * strlen(TELEGRAM_BOUNDARY"\r\n") + strlen(TELEGRAM_BOUNDARY_FTR));
+	if (overhead == NULL)
+	{
+		ESP_LOGE(TAG, "No mem (2)!");
+		free(path);
+		return;
+	}
+
+	sprintf(path, TELEGRAM_SEND_FILE_FMT, teleCtx->token);
+	sprintf(overhead, TELEGRAM_BOUNDARY_CONTENT_FMT"\"chat_id\"\r\n\r\n%.0f\r\n", chat_id);
+	if (caption)
+	{
+		sprintf(&overhead[strlen(overhead)], TELEGRAM_BOUNDARY_CONTENT_FMT"\"caption\"\r\n\r\n%s\r\n", caption);
+	}
+	sprintf(&overhead[strlen(overhead)], TELEGRAM_BOUNDARY_CONTENT_FMT"\"document\"; filename=\"%s\"\r\n"
+		"Content-Type: application/octet-stream\r\n\r\n", filename);
+
+	ctx_e = calloc(1, sizeof(telegram_send_data_e_t));
+	if (!ctx_e)
+	{
+		ESP_LOGE(TAG, "No mem!(3)");
+		free(response);
+		free(overhead);
+		free(path);
+		return;
+	}
+
+	ctx_e->teleCtx = teleCtx_ptr;
+	ctx_e->user_ctx = ctx;
+	ctx_e->user_cb = cb;
+	ctx_e->total_len = total_len;
+
+	total_len += strlen(TELEGRAM_BOUNDARY_FTR);
+	response = telegram_io_send_big(path, total_len, (telegram_io_header_t *)sendHeaders, overhead, 
+		ctx_e, telegram_send_file_e_cb);
+
+	free(overhead);
+	free(path);
+	if (response)
+	{
+		telegram_parse_messages(ctx_e, response, parse_response_result);
+		free(response);
+	}
+
+	cb(TELEGRAM_END, ctx_e->teleCtx, ctx_e->user_ctx, NULL);
+	free(ctx_e);
+}
+
+void telegram_get_file_e(void *teleCtx_ptr, const char *file_id, void *ctx, telegram_evt_cb_t cb)
+{
+	char *file_path = NULL;
+	telegram_send_data_e_t ctx_e = {.teleCtx = teleCtx_ptr, .user_ctx = ctx, .user_cb = cb, };
+
+	if ((teleCtx_ptr == NULL) || (cb == NULL))
+	{
+		ESP_LOGE(TAG, "NULL argument");
+		return;
+	}
+
+	file_path = telegram_get_file_path(teleCtx_ptr, file_id);
+	if (file_path == NULL)
+	{
+		ctx_e.user_cb(TELEGRAM_ERR, ctx_e.teleCtx, ctx_e.user_ctx, NULL);
+		ESP_LOGE(TAG, "Fail to get file path");
+	} else
+	{
+		telegram_io_read_file(file_path, &ctx_e, telegram_io_get_file_e_cb);
+		free(file_path);
+		ctx_e.user_cb(TELEGRAM_END, ctx_e.teleCtx, ctx_e.user_ctx, NULL);
+	}
+}
