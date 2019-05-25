@@ -1,6 +1,8 @@
 #ifndef TELEGRAM_IO_H
 #define TELEGRAM_IO_H
 
+#define TELEGRAM_LONG_POLLING (1)
+
 typedef struct
 {
 	const char *key;

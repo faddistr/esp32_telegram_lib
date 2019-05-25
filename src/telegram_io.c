@@ -6,7 +6,6 @@
 
 #define TELEGRAM_MAX_BUFFER 4095U
 
-
 #define MIN(x, y) (((x) < (y))?(x):(y))
 
 static const char *TAG="telegram_io";
@@ -19,7 +18,9 @@ static const esp_http_client_config_t telegram_io_http_cfg =
 #if TELGRAM_DBG == 1
         .event_handler = telegram_http_event_handler,
 #endif
-        .timeout_ms = 5000,
+#if TELEGRAM_LONG_POLLING == 1
+        .timeout_ms = 120000,
+#endif
         .url = "http://example.org",
 };
 #if TELGRAM_DBG == 1
@@ -65,9 +66,10 @@ static char *telegram_io_read_all_content(esp_http_client_handle_t client)
     uint32_t total_data_read = 0;
 
     content_length =  esp_http_client_get_content_length(client);
+#if TELGRAM_DBG == 1
     ESP_LOGI(TAG, "HTTP GET Status = %d, content_length = %d",
         esp_http_client_get_status_code(client), content_length); 
-    
+#endif
     if ((content_length > TELEGRAM_MAX_BUFFER) || (content_length <= 0))
     {
         return NULL;
@@ -90,8 +92,9 @@ static char *telegram_io_read_all_content(esp_http_client_handle_t client)
         }
         total_data_read += data_read;
     } while(data_read != 0);
-
+#if TELGRAM_DBG == 1
     ESP_LOGI(TAG, "%s", buffer);
+#endif
     return buffer;
 }
 
@@ -213,7 +216,6 @@ static char *telegram_io_send_data(const char *path, uint32_t total_len, telegra
         {
             max_size = MIN(total_len, TELEGRAM_MAX_BUFFER);
             chunk_size = cb(ctx, (uint8_t *)buffer, max_size);
-
 
             ESP_LOGI(TAG, "chunk_size %d max_size %d total_len %d", chunk_size, max_size, total_len);
             if (chunk_size > max_size)

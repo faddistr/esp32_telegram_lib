@@ -6,13 +6,13 @@
 #include "telegram.h"
 #include "telegram_io.h"
 
-
+#define TELEGRAM_DEFAULT_MESSAGE_LIMIT 10U
 #define TELEGRAM_MAX_PATH 128U
 #define TEGLEGRAM_CHAT_ID_MAX_LEN 64U
 
 #define TIMER_INTERVAL_MSEC    (1L * 5L * 1000L)
 
-#define TELEGRAM_GET_MESSAGE_POST_DATA_FMT "limit=10"
+#define TELEGRAM_GET_MESSAGE_POST_DATA_FMT "limit=%d"
 #define TELEGRAM_GET_MESSAGE_POST_DATA_OFFSET_FMT TELEGRAM_GET_MESSAGE_POST_DATA_FMT"&offset=%d"
 #define TELEGRAM_GET_UPDATES_FMT TELEGRAM_SERVER"/bot%s/getUpdates?%s"
 #define TELEGRAM_SEND_MESSAGE_FMT  TELEGRAM_SERVER"/bot%s/sendMessage"
@@ -24,6 +24,7 @@
 #define TELEGRMA_MSG_MARKUP_FMT "{\"chat_id\": \"%.0f\", \"text\": \"%s\", \"reply_markup\": {%s}}"
 
 #define TELEGRAM_FILE_PATH_FMT TELEGRAM_SERVER"/file/bot%s/%s"
+
 
 #define TELEGRAM_INT_MAX_VAL_LENGTH (54U)
 #define TELEGRAM_BOUNDARY_HDR "----------------------785aad86516cca68"
@@ -46,9 +47,12 @@ typedef struct
     char *token;	
 	int32_t last_update_id;
 	bool stop;
+#if TELEGRAM_LONG_POLLING != 1
 	TimerHandle_t timer;
-	TaskHandle_t task;
 	bool is_timer;
+#endif
+	uint32_t max_messages;
+	TaskHandle_t task;
 	telegram_on_msg_cb_t on_msg_cb;
 } telegram_ctx_t;
 
@@ -70,16 +74,24 @@ static void telegram_process_message_int_cb(void *hnd, telegram_update_t *upd)
 
 static void telegram_getMessages(telegram_ctx_t *teleCtx)
 {
+#if TELEGRAM_LONG_POLLING == 1
+	const telegram_io_header_t sendHeaders[] = 
+	{
+		{"Prefer", "wait=120"}, 
+		{NULL, NULL}
+	};
+#endif
 	char *buffer = NULL;
 	char *path = NULL;
 	char post_data[strlen(TELEGRAM_GET_MESSAGE_POST_DATA_OFFSET_FMT) + 16];
 
 	if (teleCtx->last_update_id)
 	{
-		sprintf(post_data, TELEGRAM_GET_MESSAGE_POST_DATA_OFFSET_FMT, teleCtx->last_update_id + 1);
+		sprintf(post_data, TELEGRAM_GET_MESSAGE_POST_DATA_OFFSET_FMT, teleCtx->max_messages, 
+			teleCtx->last_update_id + 1);
 	} else
 	{
-		sprintf(post_data, TELEGRAM_GET_MESSAGE_POST_DATA_FMT);
+		sprintf(post_data, TELEGRAM_GET_MESSAGE_POST_DATA_FMT, teleCtx->max_messages);
 	}
 
 	path = calloc(sizeof(char), strlen(TELEGRAM_GET_UPDATES_FMT) + strlen(teleCtx->token) + strlen(post_data) + 1);
@@ -89,7 +101,11 @@ static void telegram_getMessages(telegram_ctx_t *teleCtx)
 	}
 
 	snprintf(path, TELEGRAM_MAX_PATH, TELEGRAM_GET_UPDATES_FMT, teleCtx->token, post_data);
+#if TELEGRAM_LONG_POLLING == 1
+	buffer = telegram_io_get(path, (telegram_io_header_t *)sendHeaders);
+#else
 	buffer = telegram_io_get(path, NULL);
+#endif
  	if (buffer != NULL)
  	{
  		telegram_parse_messages(teleCtx, buffer, telegram_process_message_int_cb);
@@ -97,13 +113,15 @@ static void telegram_getMessages(telegram_ctx_t *teleCtx)
  	}
 
  	free(path);
-}
 
+}
+#if TELEGRAM_LONG_POLLING != 1
 static void telegram_timer_cb(TimerHandle_t pxTimer) 
 {
 	telegram_ctx_t *teleCtx = (telegram_ctx_t *)pvTimerGetTimerID(pxTimer);
 	teleCtx->is_timer = true;
 }
+#endif
 
 static void telegram_task(void * param)
 {
@@ -113,11 +131,15 @@ static void telegram_task(void * param)
 
 	while(!teleCtx->stop)
 	{
+#if TELEGRAM_LONG_POLLING == 1
+		telegram_getMessages(teleCtx);
+#else
 		if(teleCtx->is_timer)
 		{
 			telegram_getMessages(teleCtx);
 			teleCtx->is_timer = false;
 		}
+#endif
 		vTaskDelay(1);
 	}
 
@@ -134,15 +156,19 @@ void telegram_stop(void *teleCtx_ptr)
 
 	teleCtx = (telegram_ctx_t *)teleCtx_ptr;
 	teleCtx->stop = true;	
+#if TELEGRAM_LONG_POLLING != 1
 	xTimerStop(teleCtx->timer, 0);
+#endif
 	vTaskDelay(portTICK_RATE_MS);
 	vTaskDelete(teleCtx->task);
+#if TELEGRAM_LONG_POLLING != 1
 	xTimerDelete(teleCtx->timer, 0);
+#endif
 	free(teleCtx->token);
 	free(teleCtx);
 }
 
-void *telegram_init(const char *token, telegram_on_msg_cb_t on_msg_cb)
+void *telegram_init(const char *token, uint32_t max_messages, telegram_on_msg_cb_t on_msg_cb)
 {
 	telegram_ctx_t *teleCtx = NULL;
 
@@ -154,11 +180,20 @@ void *telegram_init(const char *token, telegram_on_msg_cb_t on_msg_cb)
 	teleCtx = calloc(1, sizeof(telegram_ctx_t));
 	if (teleCtx != NULL)
 	{
+		teleCtx->max_messages = max_messages;
+
+		if (teleCtx->max_messages == 0)
+		{
+			teleCtx->max_messages = TELEGRAM_DEFAULT_MESSAGE_LIMIT;
+		}
+
 		teleCtx->token = strdup(token);
 		teleCtx->on_msg_cb = on_msg_cb;
+#if TELEGRAM_LONG_POLLING != 1
 		teleCtx->timer = xTimerCreate("TelegramTimer", TIMER_INTERVAL_MSEC / portTICK_RATE_MS,
         	pdTRUE, teleCtx, telegram_timer_cb);
 		xTimerStart(teleCtx->timer, 0);
+#endif
 		xTaskCreate(&telegram_task, "telegram_task", 8192, teleCtx, 5, &teleCtx->task);
 	}
 
@@ -411,13 +446,13 @@ static uint32_t telegram_send_file_e_cb(void *ctx, uint8_t *buf, uint32_t max_si
 	telegram_send_data_e_t *hnd = (telegram_send_data_e_t *)ctx;
 	telegram_write_data_evt_t evt = {.buf = buf, .pice_size = max_size };
 
+	evt.total_size = hnd->total_len;
 	if (max_size > hnd->total_len)
 	{
 		evt.pice_size -= strlen(TELEGRAM_BOUNDARY_FTR);
 	}
 
 	write_size = hnd->user_cb(TELEGRAM_READ_DATA, hnd->teleCtx, hnd->user_ctx, &evt);
-
 	if (write_size > evt.pice_size)
 	{
 		ESP_LOGE(TAG, "write_size > size_to_send");

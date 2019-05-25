@@ -37,11 +37,9 @@ void telegram_send_file_e(void *teleCtx_ptr, telegram_int_t chat_id, char *capti
 void telegram_get_file_e(void *teleCtx_ptr, const char *file_id, void *ctx, telegram_evt_cb_t cb);
 
 
-
-
 void telegram_kbrd(void *teleCtx_ptr, telegram_int_t chat_id, const char *message, telegram_kbrd_t *kbrd);
 void telegram_send_text_message(void *teleCtx_ptr, telegram_int_t chat_id, const char *message);
-void *telegram_init(const char *token, telegram_on_msg_cb_t cb);
+
 void telegram_stop(void *teleCtx);
 char *telegram_get_file_path(void *teleCtx_ptr, const char *file_id);
 
@@ -53,4 +51,6 @@ void telegram_send_file(void *teleCtx_ptr, telegram_int_t chat_id, char *caption
 typedef bool(*telegram_get_file_cb_t)(void *ctx, uint8_t *buf, int size, int total_len);
 void telegram_get_file(void *teleCtx_ptr, const char *file_id, void *ctx, telegram_get_file_cb_t cb);
 
+
+void *telegram_init(const char *token, uint32_t message_limit, telegram_on_msg_cb_t cb);
 #endif // TELEGRAM_H

@@ -89,7 +89,7 @@ typedef struct
 	telegram_chat_message_t      *message;    /** Opt. Message that was send to user */
 } telegram_chat_callback_t;
 
-/** This object represent an incoming update. */
+/** This object represents an incoming update. */
 typedef struct
 {
 	telegram_int_t               id;                   /** The update‘s unique identifier. */
