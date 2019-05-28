@@ -18,12 +18,15 @@
 #define TELEGRAM_SEND_MESSAGE_FMT  TELEGRAM_SERVER"/bot%s/sendMessage"
 #define TELEGRAM_GET_FILE_FMT  TELEGRAM_SERVER"/bot%s/getFile?file_id=%s"
 #define TELEGRAM_SEND_FILE_FMT  TELEGRAM_SERVER"/bot%s/sendDocument"
-
+#define TELEGRAM_ANSWER_QUERY_FMT  TELEGRAM_SERVER"/bot%s/answerCallbackQuery"
 
 #define TELEGRMA_MSG_FMT "{\"chat_id\": \"%.0f\", \"text\": \"%s\"}"
 #define TELEGRMA_MSG_MARKUP_FMT "{\"chat_id\": \"%.0f\", \"text\": \"%s\", \"reply_markup\": {%s}}"
 
 #define TELEGRAM_FILE_PATH_FMT TELEGRAM_SERVER"/file/bot%s/%s"
+
+#define TELEGRAM_ANSWER_QUERY_FMT_PL "{\"callback_query_id\": \"%s\", \"text\": \"%s\", \"show_alert\": \"%d\", \"url\": \"%s\", \"cache_time\": \"%.0f\"}"
+
 
 
 #define TELEGRAM_INT_MAX_VAL_LENGTH (54U)
@@ -597,4 +600,40 @@ void telegram_get_file_e(void *teleCtx_ptr, const char *file_id, void *ctx, tele
 		free(file_path);
 		ctx_e.user_cb(TELEGRAM_END, ctx_e.teleCtx, ctx_e.user_ctx, NULL);
 	}
+}
+
+void telegram_answer_cb_query(void *teleCtx_ptr, const char *cid, const char *text, 
+	bool show_alert, const char *url, telegram_int_t cache_time)
+{
+	char *path = NULL;
+	char *str = NULL;
+	telegram_ctx_t *teleCtx = (telegram_ctx_t *)teleCtx_ptr;
+
+	if ((teleCtx_ptr == NULL) || (cid == NULL))
+	{
+		ESP_LOGE(TAG, "NULL argument");
+		return;
+	}	
+
+	str = calloc(strlen(TELEGRAM_ANSWER_QUERY_FMT_PL) + strlen(cid) 
+		+ strlen(text) + strlen(url) + 32, sizeof(char));
+	if (str == NULL)
+	{
+		ESP_LOGE(TAG, "No memory!(1)");
+		return;
+	}
+	sprintf(str, TELEGRAM_ANSWER_QUERY_FMT_PL, cid, text?text:"", show_alert, url?url:"", cache_time);
+
+	path = calloc(strlen(TELEGRAM_ANSWER_QUERY_FMT) + strlen(teleCtx->token),sizeof(char));
+	if (path == NULL)
+	{
+		free(str);
+		ESP_LOGE(TAG, "No memory!(2)");
+		return;
+	}
+	sprintf(path, TELEGRAM_ANSWER_QUERY_FMT, teleCtx->token);
+
+	telegram_io_send(path, str, NULL);
+	free(path);
+	free(str);
 }

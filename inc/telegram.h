@@ -53,4 +53,7 @@ void telegram_get_file(void *teleCtx_ptr, const char *file_id, void *ctx, telegr
 
 
 void *telegram_init(const char *token, uint32_t message_limit, telegram_on_msg_cb_t cb);
+
+void telegram_answer_cb_query(void *teleCtx_ptr, const char *cid, const char *text, 
+	bool show_alert, const char *url, telegram_int_t cache_time);
 #endif // TELEGRAM_H
