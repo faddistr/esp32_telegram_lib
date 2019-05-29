@@ -5,7 +5,7 @@
 #include <cJSON.h>
 #include "telegram_parse.h"
 
-#define TELEGRAM_INLINE_BTN_FMT "[{\"text\": \"%s\", \"callback_data\": \"%s\"}]"
+#define TELEGRAM_INLINE_BTN_FMT "{\"text\": \"%s\", \"callback_data\": \"%s\"}"
 #define TELEGRAM_INLINE_KBRD_FMT "\"inline_keyboard\": "
 
 static void telegram_free_user(telegram_user_t *user);
@@ -543,13 +543,23 @@ static char *telegram_make_inline_kbrd(telegram_kbrd_inline_t *kbrd)
 	char *str = NULL;
 	size_t reqSize = 0;
 	size_t count = 0;
-	telegram_kbrd_inline_btn_t *btn = kbrd->buttons;
+	size_t row_count = 0;
+	telegram_kbrd_inline_row_t *row = kbrd->rows;
 
-	while (btn->text)
+	telegram_kbrd_inline_btn_t *btn = NULL;
+
+	while (row->buttons)
 	{
-		reqSize += strlen(btn->text) + strlen(btn->callback_data);
-		btn++;
-		count++;
+		btn = row->buttons;
+		while (btn->text)
+		{
+			reqSize += strlen(btn->text) + strlen(btn->callback_data);
+			btn++;
+			count++;
+		}
+
+		row++;
+		row_count++;
 	}
 
 	if (reqSize == 0)
@@ -558,7 +568,7 @@ static char *telegram_make_inline_kbrd(telegram_kbrd_inline_t *kbrd)
 	}
 
 	str = (char *)calloc(sizeof(char), reqSize + count*strlen(TELEGRAM_INLINE_BTN_FMT) + count + 1
-		+ strlen(TELEGRAM_INLINE_KBRD_FMT) + 2 + 1); //count +1 number of comas, 2 - brackets
+		+ strlen(TELEGRAM_INLINE_KBRD_FMT) + 2 + 2*row_count + 1); //count +1 number of comas, 2 - brackets
 
 	if (str == NULL)
 	{
@@ -566,12 +576,25 @@ static char *telegram_make_inline_kbrd(telegram_kbrd_inline_t *kbrd)
 	}
 
 	count = sprintf(str, TELEGRAM_INLINE_KBRD_FMT"[");
-	btn = kbrd->buttons;
-	while (btn->text)
+	row = kbrd->rows;
+
+	while(row->buttons)
 	{
-		count += sprintf(&str[count], TELEGRAM_INLINE_BTN_FMT, btn->text, btn->callback_data);
-		btn++;
-		if (btn->text)
+		btn = row->buttons;
+		count += sprintf(&str[count], "[");
+		while (btn->text)
+		{
+			count += sprintf(&str[count], TELEGRAM_INLINE_BTN_FMT, btn->text, btn->callback_data);
+			btn++;
+			if (btn->text)
+			{
+				count += sprintf(&str[count], ",");
+			}
+		}
+
+		count += sprintf(&str[count], "]");
+		row++;
+		if (row->buttons)
 		{
 			count += sprintf(&str[count], ",");
 		}

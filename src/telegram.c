@@ -44,6 +44,11 @@ typedef struct
 } telegram_send_file_t;
 
 static const char *TAG="telegram_core";
+const telegram_io_header_t jsonHeaders[] = 
+{
+	{"Content-Type", "application/json"}, 
+	{NULL, NULL}
+};
 
 typedef struct
 {
@@ -86,7 +91,7 @@ static void telegram_getMessages(telegram_ctx_t *teleCtx)
 #endif
 	char *buffer = NULL;
 	char *path = NULL;
-	char post_data[strlen(TELEGRAM_GET_MESSAGE_POST_DATA_OFFSET_FMT) + 16];
+	char post_data[strlen(TELEGRAM_GET_MESSAGE_POST_DATA_OFFSET_FMT) + TELEGRAM_INT_MAX_VAL_LENGTH];
 
 	if (teleCtx->last_update_id)
 	{
@@ -205,11 +210,6 @@ void *telegram_init(const char *token, uint32_t max_messages, telegram_on_msg_cb
 
 static void telegram_send_message(void *teleCtx_ptr, telegram_int_t chat_id, const char *message, const char *additional_json)
 {
-	const telegram_io_header_t sendHeaders[] = 
-	{
-		{"Content-Type", "application/json"}, 
-		{NULL, NULL}
-	};
 	char *path = NULL;
 	char *payload = NULL;
 	telegram_ctx_t *teleCtx = NULL;
@@ -245,7 +245,7 @@ static void telegram_send_message(void *teleCtx_ptr, telegram_int_t chat_id, con
 	} 
     ESP_LOGI(TAG, "Send message: %s %s", path, payload);
 
-	telegram_io_send(path, payload, (telegram_io_header_t *)sendHeaders); 
+	telegram_io_send(path, payload, (telegram_io_header_t *)jsonHeaders); 
 	free(path);
 	free(payload);
 }
@@ -616,7 +616,7 @@ void telegram_answer_cb_query(void *teleCtx_ptr, const char *cid, const char *te
 	}	
 
 	str = calloc(strlen(TELEGRAM_ANSWER_QUERY_FMT_PL) + strlen(cid) 
-		+ strlen(text) + strlen(url) + 32, sizeof(char));
+		+ ((text != NULL)?strlen(text):0) + ((url!= NULL)?strlen(url):0) + TELEGRAM_INT_MAX_VAL_LENGTH, sizeof(char));
 	if (str == NULL)
 	{
 		ESP_LOGE(TAG, "No memory!(1)");
@@ -633,7 +633,7 @@ void telegram_answer_cb_query(void *teleCtx_ptr, const char *cid, const char *te
 	}
 	sprintf(path, TELEGRAM_ANSWER_QUERY_FMT, teleCtx->token);
 
-	telegram_io_send(path, str, NULL);
+	telegram_io_send(path, str, (telegram_io_header_t *)jsonHeaders);
 	free(path);
 	free(str);
 }

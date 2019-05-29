@@ -35,6 +35,23 @@ telegram_int_t telegram_get_user_id(telegram_chat_message_t *msg)
 	return -1;
 }
 
+telegram_int_t telegram_get_user_id_update(telegram_update_t *src)
+{
+	telegram_chat_message_t *msg = telegram_get_message(src);
+	telegram_chat_callback_t *cb = src->callback_query;
+	if ((msg != NULL) && (msg->from != NULL))
+	{
+		return msg->from->id;
+	}
+	
+	if (cb != NULL)
+	{
+		return cb->from->id;
+	}
+
+	return -1;
+}
+
 telegram_int_t telegram_get_chat_id(telegram_chat_message_t *msg)
 {
 	if (msg == NULL)

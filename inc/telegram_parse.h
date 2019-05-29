@@ -132,9 +132,15 @@ typedef struct
 	char callback_data[64 + 1];
 } telegram_kbrd_inline_btn_t;
 
+
 typedef struct
 {
-	telegram_kbrd_inline_btn_t *buttons; /** Button array. Last element should be NULL */
+  telegram_kbrd_inline_btn_t *buttons;
+} telegram_kbrd_inline_row_t;
+
+typedef struct
+{
+	telegram_kbrd_inline_row_t *rows; /** Button array. Last element should be NULL */
 } telegram_kbrd_inline_t;
 
 typedef union
@@ -207,4 +213,14 @@ telegram_int_t telegram_get_chat_id(telegram_chat_message_t *msg);
 * @retrun id or -1 - no id found
 */
 telegram_int_t telegram_get_user_id(telegram_chat_message_t *msg);
+
+
+/**
+* @brief Get user id from the telegram_update_t structure
+*
+* @param src where to search for an id
+*
+* @retrun id or -1 - no id found
+*/
+telegram_int_t telegram_get_user_id_update(telegram_update_t *src);
 #endif /* TELEGRAM_PARSE */
