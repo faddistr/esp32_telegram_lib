@@ -8,6 +8,14 @@
 #define TELEGRAM_INLINE_BTN_FMT "{\"text\": \"%s\", \"callback_data\": \"%s\"}"
 #define TELEGRAM_INLINE_KBRD_FMT "\"inline_keyboard\": "
 
+#define TELEGRAM_REPLY_KBRD_HEAD_FMT "\"keyboard\": ["
+#define TELEGRAM_REPLY_KBRD_FOOTER_FMT "], \"resize_keyboard\": %s, \"one_time_keyboard\": %s, \"selective\": %s"
+#define TELEGRAM_REPLY_KBRD_BTN_FMT "{\"text\": \"%s\", \"request_contact\": %s, \"request_location\": %s}"
+
+#define TELEGRAM_REPLY_KBRD_REMOVE_FMT "\"remove_keyboard\": true, \"selective\": %s"
+#define TELEGRAM_FORCE_REPLY_FMT "\"force_reply\": true, \"selective\": %s"
+
+
 static void telegram_free_user(telegram_user_t *user);
 static void telegram_free_chat(telegram_chat_t *chat);
 static void telegram_free_file(telegram_document_t *file);
@@ -535,7 +543,66 @@ static void telegram_process_messages(void *teleCtx, cJSON *messages, telegram_o
 
 static char *telegram_make_markup_kbrd(telegram_kbrd_markup_t *kbrd)
 {
-	return NULL;
+	char *str = NULL;
+	size_t count = 0;
+	size_t reqSize = strlen(TELEGRAM_REPLY_KBRD_HEAD_FMT) + strlen(TELEGRAM_REPLY_KBRD_FOOTER_FMT) + 3*strlen("false");
+	telegram_kbrd_markup_row_t *row = kbrd->rows;
+	telegram_kbrd_btn_t *btn = NULL;
+
+	while (row && row->buttons)
+	{
+		btn = row->buttons;
+		while (btn->text)
+		{
+			reqSize += strlen(btn->text) + strlen(TELEGRAM_REPLY_KBRD_BTN_FMT) + 1 + 2*strlen("false");
+			btn++;
+		}
+
+		reqSize += 3; /* [ ] , */
+
+		row++;
+	}
+
+	str = calloc(sizeof(char), reqSize);
+	if (str == NULL)
+	{
+		return NULL;
+	}
+
+	row = kbrd->rows;
+	count = sprintf(str, TELEGRAM_REPLY_KBRD_HEAD_FMT);
+	while (row && (row->buttons))
+	{
+		btn = row->buttons;
+		if (btn->text)
+		{
+			count += sprintf(&str[count], "[");
+		}
+
+		while (btn->text)
+		{
+			count += sprintf(&str[count], TELEGRAM_REPLY_KBRD_BTN_FMT, btn->text, 
+				btn->req_contact?"true":"false", btn->req_loc?"true":"false");
+
+			btn++;
+			if (btn->text)
+			{
+				count += sprintf(&str[count], ",");
+			}
+		}
+
+		count += sprintf(&str[count], "]");
+		row++;
+		if (row->buttons)
+		{
+			count += sprintf(&str[count], ",");
+		}
+	}
+
+	sprintf(&str[count], TELEGRAM_REPLY_KBRD_FOOTER_FMT, kbrd->resize?"true":"false", 
+		kbrd->one_time?"true":"false", kbrd->selective?"true":"false");
+
+	return str;
 }
 
 static char *telegram_make_inline_kbrd(telegram_kbrd_inline_t *kbrd)
@@ -548,7 +615,7 @@ static char *telegram_make_inline_kbrd(telegram_kbrd_inline_t *kbrd)
 
 	telegram_kbrd_inline_btn_t *btn = NULL;
 
-	while (row->buttons)
+	while (row && (row->buttons))
 	{
 		btn = row->buttons;
 		while (btn->text)
@@ -578,7 +645,7 @@ static char *telegram_make_inline_kbrd(telegram_kbrd_inline_t *kbrd)
 	count = sprintf(str, TELEGRAM_INLINE_KBRD_FMT"[");
 	row = kbrd->rows;
 
-	while(row->buttons)
+	while (row && (row->buttons))
 	{
 		btn = row->buttons;
 		count += sprintf(&str[count], "[");
@@ -604,6 +671,46 @@ static char *telegram_make_inline_kbrd(telegram_kbrd_inline_t *kbrd)
 	return str;
 }
 
+static char *telegram_make_markup_remove(telegram_kbrd_markup_remove_t *markup_remove)
+{
+	char *json_res = NULL;
+
+	if (markup_remove == NULL)
+	{
+		return NULL;
+	}
+
+	json_res = calloc(sizeof(char), strlen(TELEGRAM_REPLY_KBRD_REMOVE_FMT) + strlen("false"));
+	if (json_res == NULL)
+	{
+		return NULL;
+	}
+
+	sprintf(json_res, TELEGRAM_REPLY_KBRD_REMOVE_FMT, markup_remove->selective?"true":"false");
+
+	return json_res;
+}
+
+static char *telegram_make_force_reply(telegram_kbrd_force_reply_t *force_reply)
+{
+	char *json_res = NULL;
+
+	if (force_reply == NULL)
+	{
+		return NULL;
+	}
+
+	json_res = calloc(sizeof(char), strlen(TELEGRAM_REPLY_KBRD_REMOVE_FMT) + strlen("false"));
+	if (json_res == NULL)
+	{
+		return NULL;
+	}
+
+	sprintf(json_res, TELEGRAM_FORCE_REPLY_FMT, force_reply->selective?"true":"false");
+
+	return json_res;
+}
+
 char *telegram_make_kbrd(telegram_kbrd_t *kbrd)
 {
 	char *json_res = NULL;
@@ -621,6 +728,14 @@ char *telegram_make_kbrd(telegram_kbrd_t *kbrd)
 
 		case TELEGRAM_KBRD_INLINE:
 			json_res = telegram_make_inline_kbrd(&kbrd->kbrd.inl);
+			break;
+
+		case TELEGRAM_KBRD_MARKUP_REMOVE:
+			json_res = telegram_make_markup_remove(&kbrd->kbrd.markup_remove);
+			break;
+
+		case TELEGRAM_KBRD_FORCE_REPLY:
+			json_res = telegram_make_force_reply(&kbrd->kbrd.force_reply);
 			break;
 
 		default:

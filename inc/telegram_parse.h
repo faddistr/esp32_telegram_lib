@@ -108,6 +108,8 @@ typedef enum
 {
 	TELEGRAM_KBRD_MARKUP,
 	TELEGRAM_KBRD_INLINE,
+	TELEGRAM_KBRD_MARKUP_REMOVE,
+	TELEGRAM_KBRD_FORCE_REPLY,
 	TELEGRAM_KBRD_COUNT
 }telegram_kbrd_type_t;
 
@@ -120,7 +122,12 @@ typedef struct
 
 typedef struct
 {
-	telegram_kbrd_btn_t *buttons; /** Button array. Last element should be NULL */
+	telegram_kbrd_btn_t *buttons; /** Array of keyboard buttons, last element should have NULL text field */
+} telegram_kbrd_markup_row_t;
+
+typedef struct
+{
+	telegram_kbrd_markup_row_t *rows; /** Array of arrays of keyboard buttons. Last element should have NULL text field */
 	bool resize;
 	bool one_time;
 	bool selective;
@@ -135,18 +142,30 @@ typedef struct
 
 typedef struct
 {
-  telegram_kbrd_inline_btn_t *buttons;
+  telegram_kbrd_inline_btn_t *buttons; /** Array of inline buttons, last element should be NULL */
 } telegram_kbrd_inline_row_t;
 
 typedef struct
 {
-	telegram_kbrd_inline_row_t *rows; /** Button array. Last element should be NULL */
+	telegram_kbrd_inline_row_t *rows; /** Array of arrays of inline buttons. Last element should be NULL */
 } telegram_kbrd_inline_t;
+
+typedef struct
+{
+	bool selective;
+} telegram_kbrd_markup_remove_t;
+
+typedef struct
+{
+	bool selective;
+} telegram_kbrd_force_reply_t;
 
 typedef union
 {
 	telegram_kbrd_markup_t markup;
 	telegram_kbrd_inline_t inl;
+	telegram_kbrd_markup_remove_t markup_remove;
+	telegram_kbrd_force_reply_t force_reply;
 } telegram_kbrd_descr_t;
 
 typedef struct 

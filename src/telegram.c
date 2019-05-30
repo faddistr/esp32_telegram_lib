@@ -19,15 +19,12 @@
 #define TELEGRAM_GET_FILE_FMT  TELEGRAM_SERVER"/bot%s/getFile?file_id=%s"
 #define TELEGRAM_SEND_FILE_FMT  TELEGRAM_SERVER"/bot%s/sendDocument"
 #define TELEGRAM_ANSWER_QUERY_FMT  TELEGRAM_SERVER"/bot%s/answerCallbackQuery"
-
-#define TELEGRMA_MSG_FMT "{\"chat_id\": \"%.0f\", \"text\": \"%s\"}"
-#define TELEGRMA_MSG_MARKUP_FMT "{\"chat_id\": \"%.0f\", \"text\": \"%s\", \"reply_markup\": {%s}}"
-
 #define TELEGRAM_FILE_PATH_FMT TELEGRAM_SERVER"/file/bot%s/%s"
 
-#define TELEGRAM_ANSWER_QUERY_FMT_PL "{\"callback_query_id\": \"%s\", \"text\": \"%s\", \"show_alert\": \"%d\", \"url\": \"%s\", \"cache_time\": \"%.0f\"}"
-
-
+//TODO MOVE this to parser
+#define TELEGRMA_MSG_FMT "{\"chat_id\": \"%.0f\", \"text\": \"%s\"}"
+#define TELEGRMA_MSG_MARKUP_FMT "{\"chat_id\": \"%.0f\", \"text\": \"%s\", \"reply_markup\": {%s}}"
+#define TELEGRAM_ANSWER_QUERY_FMT_PL "{\"callback_query_id\": \"%s\", \"text\": \"%s\", \"show_alert\": \"%s\", \"url\": \"%s\", \"cache_time\": \"%.0f\"}"
 
 #define TELEGRAM_INT_MAX_VAL_LENGTH (54U)
 #define TELEGRAM_BOUNDARY_HDR "----------------------785aad86516cca68"
@@ -35,13 +32,13 @@
 #define TELEGRAM_BOUNDARY_CONTENT_FMT TELEGRAM_BOUNDARY"\r\nContent-Disposition: form-data; name="
 #define TELEGRAM_BOUNDARY_FTR "\r\n"TELEGRAM_BOUNDARY"--\r\n"
 
-
 typedef struct 
 {
+	void *teleCtx;
 	void *user_ctx;
-	telegram_send_file_cb_t user_cb;
+	telegram_evt_cb_t user_cb;
 	uint32_t total_len;
-} telegram_send_file_t;
+} telegram_send_data_e_t;
 
 static const char *TAG="telegram_core";
 const telegram_io_header_t jsonHeaders[] = 
@@ -323,126 +320,6 @@ char *telegram_get_file_path(void *teleCtx_ptr, const char *file_id)
 	return ret;
 }
 
-static uint32_t telegram_send_file_cb(void *ctx, uint8_t *buf, uint32_t max_size)
-{
-	uint32_t write_size = 0;
-	uint32_t size_to_send = max_size;
-	telegram_send_file_t *hnd = (telegram_send_file_t *)ctx;
-
-	if (max_size > hnd->total_len)
-	{
-		size_to_send -= strlen(TELEGRAM_BOUNDARY_FTR);
-	}
-
-	write_size = hnd->user_cb(hnd->user_ctx, buf, size_to_send);
-
-	if (write_size > size_to_send)
-	{
-		ESP_LOGE(TAG, "write_size > size_to_send");
-		return 0;
-	}
-
-	hnd->total_len -= write_size;
-	if (size_to_send != max_size)
-	{
-		sprintf((char *)&buf[write_size], "%s", TELEGRAM_BOUNDARY_FTR);
-		write_size += strlen(TELEGRAM_BOUNDARY_FTR);
-	}
-
-	return write_size;
-}
-
-void telegram_send_file(void *teleCtx_ptr, telegram_int_t chat_id, char *caption, char *filename, uint32_t total_len,
-	void *ctx, telegram_send_file_cb_t cb)
-{
-	const telegram_io_header_t sendHeaders[] = 
-	{
-		{"Content-Type", "multipart/form-data; boundary="TELEGRAM_BOUNDARY_HDR}, 
-		{NULL, NULL}
-	};
-
-	char *path = NULL;
-	char *overhead = NULL;
-	char *response = NULL;
-	telegram_ctx_t *teleCtx = NULL;
-	telegram_send_file_t send_file_ctx = { .user_ctx = ctx, .user_cb = cb, .total_len = total_len};
-
-	if ((teleCtx_ptr == NULL) || (cb == NULL) || (filename == NULL))
-	{
-		ESP_LOGE(TAG, "Send file: Null argument");
-		return;	
-	}
-
-	teleCtx = (telegram_ctx_t *)teleCtx_ptr;
-	path = calloc(sizeof(char), strlen(TELEGRAM_SEND_FILE_FMT) + strlen(teleCtx->token) + 1);
-	if (path == NULL)
-	{
-		ESP_LOGE(TAG, "No mem (1)!");
-		return;
-	}
-
-	overhead = calloc(sizeof(char), strlen(caption) + strlen(filename) + TELEGRAM_INT_MAX_VAL_LENGTH 
-		+ 3 * strlen(TELEGRAM_BOUNDARY_CONTENT_FMT) + 2 * strlen(TELEGRAM_BOUNDARY"\r\n") + strlen(TELEGRAM_BOUNDARY_FTR));
-	if (overhead == NULL)
-	{
-		ESP_LOGE(TAG, "No mem (2)!");
-		free(path);
-		return;
-	}
-
-	sprintf(path, TELEGRAM_SEND_FILE_FMT, teleCtx->token);
-	sprintf(overhead, TELEGRAM_BOUNDARY_CONTENT_FMT"\"chat_id\"\r\n\r\n%.0f\r\n", chat_id);
-	if (caption)
-	{
-		sprintf(&overhead[strlen(overhead)], TELEGRAM_BOUNDARY_CONTENT_FMT"\"caption\"\r\n\r\n%s\r\n", caption);
-	}
-	sprintf(&overhead[strlen(overhead)], TELEGRAM_BOUNDARY_CONTENT_FMT"\"document\"; filename=\"%s\"\r\n"
-		"Content-Type: application/octet-stream\r\n\r\n", filename);
-	total_len += strlen(TELEGRAM_BOUNDARY_FTR);
-
-	response = telegram_io_send_big(path, total_len, (telegram_io_header_t *)sendHeaders, overhead, 
-		&send_file_ctx, telegram_send_file_cb);
-
-	//TODO Parse response
-	if (response)
-	{
-		ESP_LOGI(TAG, "%s", response);
-	}
-	free(response);
-	free(overhead);
-	free(path);
-}
-
-void telegram_get_file(void *teleCtx_ptr, const char *file_id, void *ctx, telegram_get_file_cb_t cb)
-{
-	char *file_path = NULL;
-
-	if ((teleCtx_ptr == NULL) || (cb == NULL))
-	{
-		ESP_LOGE(TAG, "NULL argument");
-		return;
-	}
-
-	file_path = telegram_get_file_path(teleCtx_ptr, file_id);
-	if (file_path == NULL)
-	{
-		ESP_LOGE(TAG, "Fail to get file path");
-		return;
-	}
-
-	telegram_io_read_file(file_path, ctx, cb);
-	free(file_path);
-}
-
-
-typedef struct 
-{
-	void *teleCtx;
-	void *user_ctx;
-	telegram_evt_cb_t user_cb;
-	uint32_t total_len;
-} telegram_send_data_e_t;
-
 static uint32_t telegram_send_file_e_cb(void *ctx, uint8_t *buf, uint32_t max_size)
 {
 	uint32_t write_size = 0;
@@ -615,14 +492,14 @@ void telegram_answer_cb_query(void *teleCtx_ptr, const char *cid, const char *te
 		return;
 	}	
 
-	str = calloc(strlen(TELEGRAM_ANSWER_QUERY_FMT_PL) + strlen(cid) 
+	str = calloc(strlen(TELEGRAM_ANSWER_QUERY_FMT_PL) + strlen(cid) + strlen("false")
 		+ ((text != NULL)?strlen(text):0) + ((url!= NULL)?strlen(url):0) + TELEGRAM_INT_MAX_VAL_LENGTH, sizeof(char));
 	if (str == NULL)
 	{
 		ESP_LOGE(TAG, "No memory!(1)");
 		return;
 	}
-	sprintf(str, TELEGRAM_ANSWER_QUERY_FMT_PL, cid, text?text:"", show_alert, url?url:"", cache_time);
+	sprintf(str, TELEGRAM_ANSWER_QUERY_FMT_PL, cid, text?text:"", show_alert?"true":"false", url?url:"", cache_time);
 
 	path = calloc(strlen(TELEGRAM_ANSWER_QUERY_FMT) + strlen(teleCtx->token),sizeof(char));
 	if (path == NULL)
