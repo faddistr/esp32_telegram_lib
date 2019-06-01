@@ -5,6 +5,8 @@
 #include <cJSON.h>
 #include "telegram_parse.h"
 
+#define TEGLEGRAM_CHAT_ID_MAX_LEN TELEGRAM_INT_MAX_VAL_LENGTH
+
 #define TELEGRAM_INLINE_BTN_FMT "{\"text\": \"%s\", \"callback_data\": \"%s\"}"
 #define TELEGRAM_INLINE_KBRD_FMT "\"inline_keyboard\": "
 
@@ -14,6 +16,19 @@
 
 #define TELEGRAM_REPLY_KBRD_REMOVE_FMT "\"remove_keyboard\": true, \"selective\": %s"
 #define TELEGRAM_FORCE_REPLY_FMT "\"force_reply\": true, \"selective\": %s"
+
+#define TELEGRAM_MSG_FMT "\"chat_id\": \"%.0f\", \"text\": \"%s\""
+#define TELEGRAM_MSG_MARKUP_FMT ", \"reply_markup\": {%s}"
+
+#define TELEGRAM_ANSWER_QUERY_FMT_PL "{\"callback_query_id\": \"%s\", \"text\": \"%s\", \"show_alert\": \"%s\", \"url\": \"%s\", \"cache_time\": \"%.0f\"}"
+
+#define TELEGRAM_GET_MESSAGE_POST_DATA_OFFSET_FMT "&offset=%.0f"
+#define TELEGRAM_GET_UPDATES_FMT TELEGRAM_SERVER"/bot%s/getUpdates?limit=%d"
+#define TELEGRAM_SEND_MESSAGE_FMT  TELEGRAM_SERVER"/bot%s/sendMessage"
+#define TELEGRAM_GET_FILE_FMT TELEGRAM_SERVER"/file/bot%s/%s"
+#define TELEGRAM_GET_FILE_PATH_FMT  TELEGRAM_SERVER"/bot%s/getFile?file_id=%s"
+#define TELEGRAM_SEND_FILE_FMT  TELEGRAM_SERVER"/bot%s/sendDocument"
+#define TELEGRAM_ANSWER_QUERY_FMT  TELEGRAM_SERVER"/bot%s/answerCallbackQuery"
 
 
 static void telegram_free_user(telegram_user_t *user);
@@ -745,6 +760,173 @@ char *telegram_make_kbrd(telegram_kbrd_t *kbrd)
 	return json_res;
 }
 
+char *telegram_make_message(telegram_int_t chat_id, const char *message, telegram_kbrd_t *kbrd)
+{
+	uint32_t size = strlen(TELEGRAM_MSG_FMT) + TEGLEGRAM_CHAT_ID_MAX_LEN + 2 + 1; /* {} \0 */
+	char *additional_json = NULL;
+	char *payload = NULL;
+
+	if (!message) /* text field is required  */
+	{
+		return NULL;
+	}
+
+	size += strlen(message);
+	if (kbrd)
+	{
+		additional_json = telegram_make_kbrd(kbrd);
+
+		if (!additional_json)
+		{
+			return NULL;
+		}
+
+		size += strlen(additional_json) + strlen(TELEGRAM_MSG_MARKUP_FMT);
+	}
+
+	payload = calloc(sizeof(char), size);
+	if (!payload)
+	{
+		free(additional_json);
+		return NULL;
+	}
+
+	size = sprintf(payload, "{");	
+	size += sprintf(&payload[size], TELEGRAM_MSG_FMT, chat_id, message);
+	if (additional_json)
+	{
+		size += sprintf(&payload[size], TELEGRAM_MSG_MARKUP_FMT, additional_json);
+		free(additional_json);
+	}
+
+	size += sprintf(&payload[size], "}");	
+
+	return payload;
+}
+
+char *telegram_make_answer_query(const char *cid, const char *text, bool show_alert, const char *url, telegram_int_t cache_time)
+{
+	char *str = NULL;
+
+	if (cid == NULL)
+	{
+		return NULL;
+	}
+
+	str = calloc(sizeof(char), strlen(TELEGRAM_ANSWER_QUERY_FMT_PL) + strlen(cid) + strlen("false")
+		+ ((text != NULL)?strlen(text):0) + ((url!= NULL)?strlen(url):0) + TELEGRAM_INT_MAX_VAL_LENGTH);
+	if (str == NULL)
+	{
+		return NULL;
+	}
+
+	sprintf(str, TELEGRAM_ANSWER_QUERY_FMT_PL, cid, text?text:"", show_alert?"true":"false", url?url:"", cache_time);
+
+	return str;
+}
+
+char *telegram_make_method_path(const telegram_method_t method_id, const char *token, 
+	uint32_t limit, telegram_int_t offset, const char *file_id_path)
+{
+	char *str = NULL;
+	if (token == NULL)
+	{
+		return NULL;
+	}
+
+	switch (method_id)
+	{
+		case TELEGRAM_GET_UPDATES:
+			{
+				str = calloc(sizeof(char), strlen(TELEGRAM_GET_UPDATES_FMT) + strlen(token) + 1
+					+ TELEGRAM_INT_MAX_VAL_LENGTH
+					+ (offset?(strlen(TELEGRAM_GET_MESSAGE_POST_DATA_OFFSET_FMT) + TELEGRAM_INT_MAX_VAL_LENGTH):0));
+				if (str)
+				{
+					if (limit == 0)
+					{
+						limit = TELEGRAM_DEFAULT_MESSAGE_LIMIT;
+					}
+
+					sprintf(str, TELEGRAM_GET_UPDATES_FMT, token, limit);
+					if (offset)
+					{
+						sprintf(&str[strlen(str)], TELEGRAM_GET_MESSAGE_POST_DATA_OFFSET_FMT, offset);
+					}
+				}
+			}
+			break;
+
+		case TELEGRAM_SEND_MESSAGE:
+			{
+				str = calloc(sizeof(char), strlen(TELEGRAM_SEND_MESSAGE_FMT) + strlen(token) + 1);
+				if (str)
+				{
+					sprintf(str, TELEGRAM_SEND_MESSAGE_FMT, token);
+				}
+			}
+			break;
+			
+		case TELEGRAM_GET_FILE_PATH:
+			{
+				if (!file_id_path)
+				{
+					return NULL;
+				}
+				
+				str = calloc(sizeof(char), strlen(TELEGRAM_GET_FILE_PATH_FMT) + strlen(file_id_path) 
+					+ strlen(token) + 1);
+				if (str)
+				{
+					sprintf(str, TELEGRAM_GET_FILE_PATH_FMT, token, file_id_path);
+				}
+			}
+			break;
+
+		case TELEGRAM_GET_FILE:
+			{
+				if (!file_id_path)
+				{
+					return NULL;
+				}
+
+				str = calloc(sizeof(char), strlen(TELEGRAM_GET_FILE_FMT) + strlen(token) 
+					+ strlen(file_id_path) + 1);
+				if (str)
+				{
+					sprintf(str, TELEGRAM_GET_FILE_FMT, token, file_id_path);
+				}
+			}
+			break;
+
+		case TELEGRAM_SEND_FILE:
+			{
+				str = calloc(sizeof(char), strlen(TELEGRAM_SEND_FILE_FMT) + strlen(token) + 1);
+				if (str)
+				{
+					sprintf(str, TELEGRAM_SEND_FILE_FMT, token);
+				}
+			}
+			break;
+			
+
+		case TELEGRAM_ANSWER_QUERY:
+			{
+				str = calloc(sizeof(char), strlen(TELEGRAM_ANSWER_QUERY_FMT) + strlen(token) + 1);
+				if (str)
+				{
+					sprintf(str, TELEGRAM_ANSWER_QUERY_FMT, token);
+				}
+			}
+			break;
+			
+		default:
+			break;
+	}
+
+	return str;
+}
+
 void telegram_parse_messages(void *teleCtx, const char *buffer, telegram_on_msg_cb_t cb)
 {
 	cJSON *json = NULL;
@@ -808,3 +990,4 @@ char *telegram_parse_file_path(const char *buffer)
 	cJSON_Delete(json);
 	return ret;
 }
+

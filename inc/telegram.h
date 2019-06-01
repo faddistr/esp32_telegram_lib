@@ -7,11 +7,8 @@
 #include "telegram_parse.h"
 
 
-#define TELEGRAM_MSG_POLLING_INT 5U
+
 #define TELEGRAM_MAX_TOKEN_LEN 	128U
-#define TELEGRAM_SERVER 		"https://api.telegram.org"
-
-
 
 typedef enum
 {
@@ -31,11 +28,10 @@ typedef struct
 
 typedef uint32_t(*telegram_evt_cb_t)(telegram_data_event_t evt, void *teleCtx_ptr, void *ctx, void *evt_data);
 
-void telegram_send_file_e(void *teleCtx_ptr, telegram_int_t chat_id, char *caption, char *filename, uint32_t total_len,
+void telegram_send_file(void *teleCtx_ptr, telegram_int_t chat_id, char *caption, char *filename, uint32_t total_len,
 	void *ctx, telegram_evt_cb_t cb);
 
-void telegram_get_file_e(void *teleCtx_ptr, const char *file_id, void *ctx, telegram_evt_cb_t cb);
-
+void telegram_get_file(void *teleCtx_ptr, const char *file_id, void *ctx, telegram_evt_cb_t cb);
 
 void telegram_kbrd(void *teleCtx_ptr, telegram_int_t chat_id, const char *message, telegram_kbrd_t *kbrd);
 void telegram_send_text_message(void *teleCtx_ptr, telegram_int_t chat_id, const char *message);

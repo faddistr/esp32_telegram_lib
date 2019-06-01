@@ -5,8 +5,27 @@
 #define TELEGRAM_PARSE
 #include <stdbool.h>
 
+#define TELEGRAM_SERVER 		"https://api.telegram.org"
+
 /** Telegram int type, 52 bits, uses double for compatibility with cjson lib*/
 typedef double telegram_int_t;
+
+#define TELEGRAM_INT_MAX_VAL_LENGTH (64U)
+
+#define TELEGRAM_DEFAULT_MESSAGE_LIMIT (10U)
+
+
+/** Methods for telegram rest api */
+typedef enum
+{
+	TELEGRAM_GET_UPDATES,
+	TELEGRAM_SEND_MESSAGE,
+	TELEGRAM_GET_FILE_PATH,
+	TELEGRAM_GET_FILE,
+	TELEGRAM_SEND_FILE,
+	TELEGRAM_ANSWER_QUERY,
+} telegram_method_t;
+
 struct telegram_chat_message;
 
 /** This object represents a Telegram user or bot */
@@ -200,7 +219,7 @@ char *telegram_make_kbrd(telegram_kbrd_t *kbrd);
 *
 * @param src where search for a message
 *
-* @retrun message or NULL
+* @return message or NULL
 */
 telegram_chat_message_t *telegram_get_message(telegram_update_t *src);
 
@@ -211,7 +230,7 @@ telegram_chat_message_t *telegram_get_message(telegram_update_t *src);
 *
 * @param buffer where search for a file_path
 *
-* @retrun file_path or NULL
+* @return file_path or NULL
 */
 char *telegram_parse_file_path(const char *buffer);
 
@@ -220,7 +239,7 @@ char *telegram_parse_file_path(const char *buffer);
 *
 * @param msg where to search for an id
 *
-* @retrun id or -1 - no id found
+* @return id or -1 - no id found
 */
 telegram_int_t telegram_get_chat_id(telegram_chat_message_t *msg);
 
@@ -229,7 +248,7 @@ telegram_int_t telegram_get_chat_id(telegram_chat_message_t *msg);
 *
 * @param msg where to search for an id
 *
-* @retrun id or -1 - no id found
+* @return id or -1 - no id found
 */
 telegram_int_t telegram_get_user_id(telegram_chat_message_t *msg);
 
@@ -239,7 +258,46 @@ telegram_int_t telegram_get_user_id(telegram_chat_message_t *msg);
 *
 * @param src where to search for an id
 *
-* @retrun id or -1 - no id found
+* @return id or -1 - no id found
 */
 telegram_int_t telegram_get_user_id_update(telegram_update_t *src);
+
+/**
+* @brief Generate message json
+*
+* @param chat_id id of chat
+* @param message text of the message
+* @param kbrd optional keyboard object
+*
+* @return NULL or message
+*/
+char *telegram_make_message(telegram_int_t chat_id, const char *message, telegram_kbrd_t *kbrd);
+
+/**
+* @brief Generate answer query
+*
+* @param cid id of the query
+* @param text optional text of the message
+* @param show_alert show alert to user
+* @param url optional url
+* @param cache_time optional cache time for the answer
+*
+* @return NULL or answer
+*/
+char *telegram_make_answer_query(const char *cid, const char *text, bool show_alert, const char *url, 
+	telegram_int_t cache_time);
+
+/**
+* @brief Generates https REST API method path
+*
+* @param method_id id of the method, see telegram_method_t
+* @param token bot token
+* @param limit updates number limit for TELEGRAM_GET_UPDATES
+* @param offset update_id from which updates should be received for TELEGRAM_GET_UPDATES
+* @param file_id_path file_id for TELEGRAM_GET_FILE_PATH or file_path in case of TELEGRAM_GET_FILE
+*
+* @return NULL or method
+*/
+char *telegram_make_method_path(const telegram_method_t method_id, const char *token, 
+	uint32_t limit, telegram_int_t offset, const char *file_id_path);
 #endif /* TELEGRAM_PARSE */
