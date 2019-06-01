@@ -397,8 +397,6 @@ void telegram_answer_cb_query(void *teleCtx_ptr, const char *cid, const char *te
 		return;
 	}
 
-	//ESP_LOGI(TAG, "Q=%s", str);
-
 	path = telegram_make_method_path(TELEGRAM_ANSWER_QUERY, teleCtx->token, 0, 0, NULL);
 	if (path == NULL)
 	{
@@ -406,10 +404,6 @@ void telegram_answer_cb_query(void *teleCtx_ptr, const char *cid, const char *te
 		ESP_LOGE(TAG, "No memory!(2)");
 		return;
 	}
-
-
-	//ESP_LOGI(TAG, "P=%s", path);
-
 
 	telegram_io_send(path, str, (telegram_io_header_t *)jsonHeaders);
 	free(path);

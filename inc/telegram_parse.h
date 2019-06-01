@@ -1,5 +1,5 @@
 /**
-
+* Telegram parse module, generates JSON requests and parses JSON responses
 */
 #ifndef TELEGRAM_PARSE
 #define TELEGRAM_PARSE
@@ -12,7 +12,7 @@ typedef double telegram_int_t;
 
 #define TELEGRAM_INT_MAX_VAL_LENGTH (64U)
 
-#define TELEGRAM_DEFAULT_MESSAGE_LIMIT (10U)
+#define TELEGRAM_DEFAULT_MESSAGE_LIMIT (3U)
 
 
 /** Methods for telegram rest api */
