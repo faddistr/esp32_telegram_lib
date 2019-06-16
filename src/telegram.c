@@ -31,6 +31,7 @@ typedef struct
 {
     char *token;	
 	void *getter;
+	void *io_ctx;
 	telegram_on_msg_cb_t on_msg_cb;
 	telegram_int_t last_update_id;
 	uint32_t max_messages;
@@ -54,6 +55,7 @@ static void telegram_process_message_int_cb(void *hnd, telegram_update_t *upd)
 
 static void telegram_getMessages(void *ctx)
 {
+	
 #if TELEGRAM_LONG_POLLING == 1
 	const telegram_io_header_t sendHeaders[] = 
 	{
@@ -81,9 +83,9 @@ static void telegram_getMessages(void *ctx)
 	}
 
 #if TELEGRAM_LONG_POLLING == 1
-	buffer = telegram_io_get(path, (telegram_io_header_t *)sendHeaders);
+	buffer = telegram_io_get_ctx(&teleCtx->io_ctx, path, (telegram_io_header_t *)sendHeaders);
 #else
-	buffer = telegram_io_get(path, NULL);
+	buffer = telegram_io_get_ctx(&teleCtx->io_ctx, path, NULL);
 #endif
  	free(path);
  	if (buffer != NULL)
@@ -103,6 +105,7 @@ void telegram_stop(void *teleCtx_ptr)
 	}
 
 	telegram_getter_stop(teleCtx->getter);
+	telegram_io_free_ctx(&teleCtx->io_ctx);
 	free(teleCtx->token);
 	free(teleCtx);
 }

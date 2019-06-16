@@ -4,7 +4,7 @@
 #include "telegram_io.h"
 #define TELGRAM_DBG 0
 
-#define TELEGRAM_MAX_BUFFER 4095U
+#define TELEGRAM_MAX_BUFFER 4096U
 
 #define MIN(x, y) (((x) < (y))?(x):(y))
 
@@ -146,26 +146,44 @@ static esp_err_t telegram_io_prepare(esp_http_client_handle_t client, char *path
     return err;
 }
 
-static char *telegram_io_send_data(const char *path, uint32_t total_len, telegram_io_header_t *headers, 
+static char *telegram_io_send_data(void **io_ctx, const char *path, uint32_t total_len, telegram_io_header_t *headers, 
     esp_http_client_method_t method, const char *post_field, void *ctx, telegram_io_send_file_cb_t cb)
 {
     char *response = NULL;
     esp_err_t err;
-    esp_http_client_handle_t client;
+    esp_http_client_handle_t client = NULL;
     uint32_t len_to_send = total_len;
 
-    client = esp_http_client_init(&telegram_io_http_cfg);
+    if (io_ctx)
+    {
+        client = (esp_http_client_handle_t)*io_ctx;
+    }
+
+
     if (client == NULL)
     {
-        ESP_LOGE(TAG, "Failed to init http client");
-        return NULL; 
+        client = esp_http_client_init(&telegram_io_http_cfg);
+        if (client == NULL)
+        {
+            ESP_LOGE(TAG, "Failed to init http client");
+            return NULL; 
+        }
+
+        if (io_ctx)
+        {
+            *io_ctx = client;
+        }
     }
 
     err = telegram_io_prepare(client, (char *)path, method, headers);
     if (err != ESP_OK)
     {
         ESP_LOGE(TAG, "telegram_io_prepare failed err %d", err);
-        esp_http_client_cleanup(client);
+
+        if (io_ctx == NULL)
+        {
+            esp_http_client_cleanup(client);
+        }
         return NULL;
     }
 
@@ -177,7 +195,10 @@ static char *telegram_io_send_data(const char *path, uint32_t total_len, telegra
     err = esp_http_client_open(client, len_to_send);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "esp_http_client_connect failed err %d", err);
-        esp_http_client_cleanup(client);
+        if (io_ctx == NULL)
+        {
+            esp_http_client_cleanup(client);
+        }
         return NULL;
     }
 
@@ -208,7 +229,10 @@ static char *telegram_io_send_data(const char *path, uint32_t total_len, telegra
         {
             ESP_LOGE(TAG, "No mem!");
             esp_http_client_close(client);
-            esp_http_client_cleanup(client);
+            if (io_ctx == NULL)
+            {
+                esp_http_client_cleanup(client);
+            }
             return NULL;
         }
 
@@ -255,7 +279,10 @@ static char *telegram_io_send_data(const char *path, uint32_t total_len, telegra
     }
 
     esp_http_client_close(client);
-    esp_http_client_cleanup(client);
+    if (io_ctx == NULL)
+    {
+        esp_http_client_cleanup(client);
+    }
     return response;
 }
 
@@ -267,7 +294,30 @@ char *telegram_io_get(const char *path, telegram_io_header_t *headers)
         return NULL;
     }
 
-    return telegram_io_send_data(path, 0, headers,  HTTP_METHOD_GET,  NULL, NULL, NULL);
+    return telegram_io_send_data(NULL, path, 0, headers,  HTTP_METHOD_GET,  NULL, NULL, NULL);
+}
+
+
+char *telegram_io_get_ctx(void **io_ctx, const char *path, telegram_io_header_t *headers)
+{
+    if (path == NULL)
+    {
+        ESP_LOGE(TAG, "Wrong arguments(get)");
+        return NULL;
+    }
+
+    return telegram_io_send_data(io_ctx, path, 0, headers,  HTTP_METHOD_GET,  NULL, NULL, NULL);
+}
+
+void telegram_io_free_ctx(void **io_ctx)
+{
+    if (io_ctx == NULL)
+    {
+        return;
+    }
+
+    esp_http_client_cleanup((esp_http_client_handle_t)*io_ctx);
+    *io_ctx = NULL;
 }
 
 void telegram_io_send(const char *path, const char *message, telegram_io_header_t *headers)
@@ -281,7 +331,7 @@ void telegram_io_send(const char *path, const char *message, telegram_io_header_
 
     ESP_LOGI(TAG, "Send message: %s", message);
 
-    buffer = telegram_io_send_data(path, 0, headers,  HTTP_METHOD_POST,  (char *)message, NULL, NULL);
+    buffer = telegram_io_send_data(NULL, path, 0, headers,  HTTP_METHOD_POST,  (char *)message, NULL, NULL);
     free(buffer);
 }
 
@@ -294,7 +344,7 @@ char *telegram_io_send_big(const char *path, uint32_t total_len, telegram_io_hea
         return NULL;
     }
 
-    return telegram_io_send_data(path, total_len, headers, HTTP_METHOD_POST, (char *)post_field, ctx, cb);
+    return telegram_io_send_data(NULL, path, total_len, headers, HTTP_METHOD_POST, (char *)post_field, ctx, cb);
 }
 
 void telegram_io_read_file(const char *file_path, void *ctx, telegram_io_get_file_cb_t cb)
