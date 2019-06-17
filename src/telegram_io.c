@@ -2,9 +2,6 @@
 #include <esp_log.h>
 #include <esp_http_client.h>
 #include "telegram_io.h"
-#define TELGRAM_DBG 0
-
-#define TELEGRAM_MAX_BUFFER 4096U
 
 #define MIN(x, y) (((x) < (y))?(x):(y))
 
@@ -223,7 +220,8 @@ static char *telegram_io_send_data(void **io_ctx, const char *path, uint32_t tot
         int send_len;
         uint32_t max_size = 0;
         uint32_t chunk_size = 0;
-        char *buffer = calloc(1, TELEGRAM_MAX_BUFFER);
+        uint32_t offset = 0;
+        char *buffer = malloc(TELEGRAM_MAX_BUFFER);
         
         if (buffer == NULL)
         {
@@ -239,9 +237,9 @@ static char *telegram_io_send_data(void **io_ctx, const char *path, uint32_t tot
         while (total_len)
         {
             max_size = MIN(total_len, TELEGRAM_MAX_BUFFER);
-            chunk_size = cb(ctx, (uint8_t *)buffer, max_size);
+            chunk_size = cb(ctx, (uint8_t *)buffer, max_size, offset);
 
-            ESP_LOGI(TAG, "chunk_size %d max_size %d total_len %d", chunk_size, max_size, total_len);
+            ESP_LOGI(TAG, "chunk_size %d max_size %d total_len %d offset %d", chunk_size, max_size, total_len, offset);
             if (chunk_size > max_size)
             {
                 err = ESP_ERR_INVALID_SIZE;
@@ -254,6 +252,7 @@ static char *telegram_io_send_data(void **io_ctx, const char *path, uint32_t tot
                 break;
             }
 
+            offset += chunk_size;
             send_len = esp_http_client_write(client, buffer, chunk_size);
             if (send_len != chunk_size) 
             {

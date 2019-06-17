@@ -27,16 +27,11 @@ static void telegram_timer_cb(TimerHandle_t pxTimer)
 
 static void telegram_task(void * param)
 {
-	uint32_t free;
 	telegram_getter_t *teleCtx = (telegram_getter_t *)param;
 
     ESP_LOGI(TAG, "Start... thread");
 	while(!teleCtx->stop)
 	{
-		free = heap_caps_get_free_size(MALLOC_CAP_8BIT);
-		ESP_LOGE(TAG, "FREE RAM: %d", free);
-		free = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
-		ESP_LOGE(TAG, "Largest block: %d", free);
 #if TELEGRAM_LONG_POLLING == 1
 		teleCtx->onGetMessages(teleCtx->ctx);
 #else

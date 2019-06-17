@@ -131,8 +131,6 @@ void *telegram_init(const char *token, uint32_t max_messages, telegram_on_msg_cb
 
 		teleCtx->token = strdup(token);
 		teleCtx->on_msg_cb = on_msg_cb;
-	    ESP_LOGI(TAG, "%s :", teleCtx->token );
-
 		teleCtx->getter = telegram_getter_init(telegram_getMessages, teleCtx);
 
 		if (!teleCtx->getter)
@@ -223,11 +221,11 @@ char *telegram_get_file_path(void *teleCtx_ptr, const char *file_id)
 	return ret;
 }
 
-static uint32_t telegram_send_file_cb(void *ctx, uint8_t *buf, uint32_t max_size)
+static uint32_t telegram_send_file_cb(void *ctx, uint8_t *buf, uint32_t max_size, uint32_t offset)
 {
 	uint32_t write_size = 0;
 	telegram_send_data_e_t *hnd = (telegram_send_data_e_t *)ctx;
-	telegram_write_data_evt_t evt = {.buf = buf, .pice_size = max_size };
+	telegram_write_data_evt_t evt = {.buf = buf, .pice_size = max_size, .offset = offset };
 
 	evt.total_size = hnd->total_len;
 	if (max_size > hnd->total_len)
@@ -280,8 +278,8 @@ static bool telegram_io_get_file_cb(void *ctx, uint8_t *buf, int size, int total
 	return true;
 }
 
-void telegram_send_file(void *teleCtx_ptr, telegram_int_t chat_id, char *caption, char *filename, uint32_t total_len,
-	void *ctx, telegram_evt_cb_t cb)
+void telegram_send_file_full(void *teleCtx_ptr, telegram_int_t chat_id, char *caption, char *filename, uint32_t total_len,
+	void *ctx, telegram_evt_cb_t cb, telegram_file_type_t file_type)
 {
 	const telegram_io_header_t sendHeaders[] = 
 	{
@@ -295,20 +293,35 @@ void telegram_send_file(void *teleCtx_ptr, telegram_int_t chat_id, char *caption
 	telegram_ctx_t *teleCtx = (telegram_ctx_t *)teleCtx_ptr;
 	telegram_send_data_e_t *ctx_e = NULL;
 
-	if ((teleCtx_ptr == NULL) || (cb == NULL) || (filename == NULL) || (total_len == 0))
+	if ((teleCtx_ptr == NULL) || (cb == NULL) || (total_len == 0))
 	{
 		ESP_LOGE(TAG, "Send file: Wrong argument");
 		return;	
 	}
 
-	path = telegram_make_method_path(TELEGRAM_SEND_FILE, teleCtx->token, 0, 0, NULL);
+	switch(file_type)
+	{
+		case TELEGRAM_PHOTO:
+			path = telegram_make_method_path(TELEGRAM_SEND_PHOTO, teleCtx->token, 0, 0, NULL);
+			break;
+
+		default:
+			if (filename == NULL)
+			{
+				ESP_LOGE(TAG, "Filename required!");
+				return;	
+			}
+			path = telegram_make_method_path(TELEGRAM_SEND_FILE, teleCtx->token, 0, 0, NULL);
+			break;
+	}
+
 	if (path == NULL)
 	{
 		ESP_LOGE(TAG, "No mem (1)!");
 		return;
 	}
 
-	overhead = calloc(sizeof(char), strlen(caption) + strlen(filename) + TELEGRAM_INT_MAX_VAL_LENGTH 
+	overhead = calloc(sizeof(char), ((caption!=NULL)?strlen(caption):0) + ((filename != NULL)?strlen(filename):0) + TELEGRAM_INT_MAX_VAL_LENGTH 
 		+ 3 * strlen(TELEGRAM_BOUNDARY_CONTENT_FMT) + 2 * strlen(TELEGRAM_BOUNDARY"\r\n") + strlen(TELEGRAM_BOUNDARY_FTR));
 	if (overhead == NULL)
 	{
@@ -322,8 +335,20 @@ void telegram_send_file(void *teleCtx_ptr, telegram_int_t chat_id, char *caption
 	{
 		sprintf(&overhead[strlen(overhead)], TELEGRAM_BOUNDARY_CONTENT_FMT"\"caption\"\r\n\r\n%s\r\n", caption);
 	}
-	sprintf(&overhead[strlen(overhead)], TELEGRAM_BOUNDARY_CONTENT_FMT"\"document\"; filename=\"%s\"\r\n"
-		"Content-Type: application/octet-stream\r\n\r\n", filename);
+
+
+	switch(file_type)
+	{
+		case TELEGRAM_PHOTO: 
+			sprintf(&overhead[strlen(overhead)], TELEGRAM_BOUNDARY_CONTENT_FMT"\"photo\"\r\n");
+			break;
+
+		default:
+			sprintf(&overhead[strlen(overhead)], TELEGRAM_BOUNDARY_CONTENT_FMT"\"document\"; filename=\"%s\"\r\n",filename);
+			break;
+	}
+
+	sprintf(&overhead[strlen(overhead)], "Content-Type: application/octet-stream\r\n\r\n");
 
 	ctx_e = calloc(1, sizeof(telegram_send_data_e_t));
 	if (!ctx_e)
@@ -355,6 +380,13 @@ void telegram_send_file(void *teleCtx_ptr, telegram_int_t chat_id, char *caption
 	cb(TELEGRAM_END, ctx_e->teleCtx, ctx_e->user_ctx, NULL);
 	free(ctx_e);
 }
+
+void telegram_send_file(void *teleCtx_ptr, telegram_int_t chat_id, char *caption, char *filename, uint32_t total_len,
+	void *ctx, telegram_evt_cb_t cb)
+{
+	telegram_send_file_full(teleCtx_ptr, chat_id, caption, filename, total_len, ctx, cb, TELEGRAM_DOCUMENT);
+}
+
 
 void telegram_get_file(void *teleCtx_ptr, const char *file_id, void *ctx, telegram_evt_cb_t cb)
 {

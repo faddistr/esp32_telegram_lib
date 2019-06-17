@@ -12,7 +12,7 @@ typedef double telegram_int_t;
 
 #define TELEGRAM_INT_MAX_VAL_LENGTH (64U)
 
-#define TELEGRAM_DEFAULT_MESSAGE_LIMIT (3U)
+#define TELEGRAM_DEFAULT_MESSAGE_LIMIT (1U)
 
 
 /** Methods for telegram rest api */
@@ -23,6 +23,7 @@ typedef enum
 	TELEGRAM_GET_FILE_PATH,
 	TELEGRAM_GET_FILE,
 	TELEGRAM_SEND_FILE,
+	TELEGRAM_SEND_PHOTO,
 	TELEGRAM_ANSWER_QUERY,
 } telegram_method_t;
 

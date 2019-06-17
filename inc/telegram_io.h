@@ -2,6 +2,9 @@
 #define TELEGRAM_IO_H
 
 #define TELEGRAM_LONG_POLLING (1)
+#define TELGRAM_DBG 0
+
+#define TELEGRAM_MAX_BUFFER 1024U
 
 typedef struct
 {
@@ -9,7 +12,7 @@ typedef struct
 	const char *value;
 } telegram_io_header_t;
 
-typedef uint32_t(*telegram_io_send_file_cb_t)(void *ctx, uint8_t *buf, uint32_t max_size);
+typedef uint32_t(*telegram_io_send_file_cb_t)(void *ctx, uint8_t *buf, uint32_t max_size, uint32_t offset);
 
 /**
  headers should be end with null key

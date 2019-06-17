@@ -6,8 +6,6 @@
 #include <stdlib.h>
 #include "telegram_parse.h"
 
-
-
 #define TELEGRAM_MAX_TOKEN_LEN 	128U
 
 typedef enum
@@ -19,14 +17,24 @@ typedef enum
 	TELEGRAM_END,
 } telegram_data_event_t;
 
+typedef enum
+{
+	TELEGRAM_DOCUMENT,
+	TELEGRAM_PHOTO,
+} telegram_file_type_t;
+
 typedef struct 
 {
 	uint8_t  *buf;
 	uint32_t pice_size;
 	uint32_t total_size;
+	uint32_t offset;
 } telegram_write_data_evt_t;
 
 typedef uint32_t(*telegram_evt_cb_t)(telegram_data_event_t evt, void *teleCtx_ptr, void *ctx, void *evt_data);
+
+void telegram_send_file_full(void *teleCtx_ptr, telegram_int_t chat_id, char *caption, char *filename, uint32_t total_len,
+	void *ctx, telegram_evt_cb_t cb, telegram_file_type_t file_type);
 
 void telegram_send_file(void *teleCtx_ptr, telegram_int_t chat_id, char *caption, char *filename, uint32_t total_len,
 	void *ctx, telegram_evt_cb_t cb);
