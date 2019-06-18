@@ -2,6 +2,8 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <esp_log.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
 #include "telegram.h"
 #include "telegram_io.h"
 #include "telegram_getter.h"
@@ -35,7 +37,32 @@ typedef struct
 	telegram_on_msg_cb_t on_msg_cb;
 	telegram_int_t last_update_id;
 	uint32_t max_messages;
+	SemaphoreHandle_t sem;
 } telegram_ctx_t;
+
+static void telegram_wait_mutex_func(telegram_ctx_t *ctx, char *func_name)
+{
+	while (!xSemaphoreTake(ctx->sem, portMAX_DELAY))
+	{
+		ESP_LOGW(TAG, "Mutex wait error! %s", func_name);
+	}		
+}
+
+static void telegram_give_mutex_func(telegram_ctx_t *ctx)
+{
+	xSemaphoreGive(ctx->sem);
+}
+
+#define telegram_wait_mutex(x) { \
+	ESP_LOGI(TAG, "Taking mutex %s", __func__); \
+	telegram_wait_mutex_func(x, (char *)__func__); \
+}
+
+#define telegram_give_mutex(x) { \
+	ESP_LOGI(TAG, "Give mutex %s", __func__); \
+	telegram_give_mutex_func(x); \
+}
+
 
 
 static void telegram_process_message_int_cb(void *hnd, telegram_update_t *upd)
@@ -73,12 +100,15 @@ static void telegram_getMessages(void *ctx)
 		return;
 	}
 
+	telegram_wait_mutex(teleCtx);
+
 	path = telegram_make_method_path(TELEGRAM_GET_UPDATES, teleCtx->token, teleCtx->max_messages, 
 		(teleCtx->last_update_id?(teleCtx->last_update_id + 1):0), NULL);
 
 	if (!path)
 	{
 		ESP_LOGE(TAG, "No mem!");
+		telegram_give_mutex(teleCtx);
 		return;
 	}
 
@@ -93,6 +123,8 @@ static void telegram_getMessages(void *ctx)
  		telegram_parse_messages(teleCtx, buffer, telegram_process_message_int_cb);
  		free(buffer);
  	}
+
+ 	telegram_give_mutex(teleCtx);
 }
 
 void telegram_stop(void *teleCtx_ptr)
@@ -129,6 +161,8 @@ void *telegram_init(const char *token, uint32_t max_messages, telegram_on_msg_cb
 			teleCtx->max_messages = TELEGRAM_DEFAULT_MESSAGE_LIMIT;
 		}
 
+		vSemaphoreCreateBinary(teleCtx->sem);
+
 		teleCtx->token = strdup(token);
 		teleCtx->on_msg_cb = on_msg_cb;
 		teleCtx->getter = telegram_getter_init(telegram_getMessages, teleCtx);
@@ -150,15 +184,17 @@ static void telegram_send_message(void *teleCtx_ptr, telegram_int_t chat_id, con
 	char *path = NULL;
 	char *payload = NULL;
 	telegram_ctx_t *teleCtx = (telegram_ctx_t *)teleCtx_ptr;
-
 	if (!teleCtx)
 	{
 		return;
 	}
 
+	telegram_wait_mutex(teleCtx);
+
 	path = telegram_make_method_path(TELEGRAM_SEND_MESSAGE, teleCtx->token, 0, 0, NULL);
 	if (path == NULL)
 	{
+		telegram_give_mutex(teleCtx);
 		return;
 	}
 
@@ -166,6 +202,7 @@ static void telegram_send_message(void *teleCtx_ptr, telegram_int_t chat_id, con
 	if (payload == NULL)
 	{
 		free(path);
+		telegram_give_mutex(teleCtx);
 		return;
 	}
 
@@ -173,6 +210,7 @@ static void telegram_send_message(void *teleCtx_ptr, telegram_int_t chat_id, con
 	telegram_io_send(path, payload, (telegram_io_header_t *)jsonHeaders); 
 	free(path);
 	free(payload);
+	telegram_give_mutex(teleCtx);
 }
 
 void telegram_kbrd(void *teleCtx_ptr, telegram_int_t chat_id, const char *message, telegram_kbrd_t *kbrd)
@@ -198,9 +236,11 @@ char *telegram_get_file_path(void *teleCtx_ptr, const char *file_id)
 		return NULL;
 	}
 
+	telegram_wait_mutex(teleCtx);
 	path = telegram_make_method_path(TELEGRAM_GET_FILE_PATH, teleCtx->token, 0, 0, file_id);
 	if (path == NULL)
 	{
+		telegram_give_mutex(teleCtx);
 		return NULL;
 	}
 
@@ -218,6 +258,7 @@ char *telegram_get_file_path(void *teleCtx_ptr, const char *file_id)
 			free(file_path);
 		}
  	}
+ 	telegram_give_mutex(teleCtx);
 	return ret;
 }
 
@@ -299,6 +340,7 @@ void telegram_send_file_full(void *teleCtx_ptr, telegram_int_t chat_id, char *ca
 		return;	
 	}
 
+	telegram_wait_mutex(teleCtx);
 	switch(file_type)
 	{
 		case TELEGRAM_PHOTO:
@@ -313,6 +355,7 @@ void telegram_send_file_full(void *teleCtx_ptr, telegram_int_t chat_id, char *ca
 	if (path == NULL)
 	{
 		ESP_LOGE(TAG, "No mem (1)!");
+		telegram_give_mutex(teleCtx);
 		return;
 	}
 
@@ -322,6 +365,7 @@ void telegram_send_file_full(void *teleCtx_ptr, telegram_int_t chat_id, char *ca
 	{
 		ESP_LOGE(TAG, "No mem (2)!");
 		free(path);
+		telegram_give_mutex(teleCtx);
 		return;
 	}
 
@@ -352,6 +396,7 @@ void telegram_send_file_full(void *teleCtx_ptr, telegram_int_t chat_id, char *ca
 		free(response);
 		free(overhead);
 		free(path);
+		telegram_give_mutex(teleCtx);
 		return;
 	}
 
@@ -374,6 +419,7 @@ void telegram_send_file_full(void *teleCtx_ptr, telegram_int_t chat_id, char *ca
 
 	cb(TELEGRAM_END, ctx_e->teleCtx, ctx_e->user_ctx, NULL);
 	free(ctx_e);
+	telegram_give_mutex(teleCtx);
 }
 
 void telegram_send_file(void *teleCtx_ptr, telegram_int_t chat_id, char *caption, char *filename, uint32_t total_len,
@@ -393,8 +439,9 @@ void telegram_get_file(void *teleCtx_ptr, const char *file_id, void *ctx, telegr
 		ESP_LOGE(TAG, "NULL argument");
 		return;
 	}
-
+	
 	file_path = telegram_get_file_path(teleCtx_ptr, file_id);
+	telegram_wait_mutex((telegram_ctx_t *)teleCtx_ptr);
 	if (file_path == NULL)
 	{
 		ctx_e.user_cb(TELEGRAM_ERR, ctx_e.teleCtx, ctx_e.user_ctx, NULL);
@@ -405,6 +452,7 @@ void telegram_get_file(void *teleCtx_ptr, const char *file_id, void *ctx, telegr
 		free(file_path);
 		ctx_e.user_cb(TELEGRAM_END, ctx_e.teleCtx, ctx_e.user_ctx, NULL);
 	}
+	telegram_give_mutex((telegram_ctx_t *)teleCtx_ptr);
 }
 
 void telegram_answer_cb_query(void *teleCtx_ptr, const char *cid, const char *text, 
@@ -419,11 +467,13 @@ void telegram_answer_cb_query(void *teleCtx_ptr, const char *cid, const char *te
 		ESP_LOGE(TAG, "NULL argument");
 		return;
 	}
-
+	
+	telegram_wait_mutex(teleCtx);
 	str = telegram_make_answer_query(cid, text, show_alert, url, cache_time);	
 	if (str == NULL)
 	{
 		ESP_LOGE(TAG, "No memory!(1)");
+		telegram_give_mutex(teleCtx);
 		return;
 	}
 
@@ -432,10 +482,12 @@ void telegram_answer_cb_query(void *teleCtx_ptr, const char *cid, const char *te
 	{
 		free(str);
 		ESP_LOGE(TAG, "No memory!(2)");
+		telegram_give_mutex(teleCtx);
 		return;
 	}
 
 	telegram_io_send(path, str, (telegram_io_header_t *)jsonHeaders);
 	free(path);
 	free(str);
+	telegram_give_mutex(teleCtx);
 }
