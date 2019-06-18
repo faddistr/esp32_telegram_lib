@@ -293,7 +293,7 @@ void telegram_send_file_full(void *teleCtx_ptr, telegram_int_t chat_id, char *ca
 	telegram_ctx_t *teleCtx = (telegram_ctx_t *)teleCtx_ptr;
 	telegram_send_data_e_t *ctx_e = NULL;
 
-	if ((teleCtx_ptr == NULL) || (cb == NULL) || (total_len == 0))
+	if ((teleCtx_ptr == NULL) || (cb == NULL) || (total_len == 0) || (filename == NULL))
 	{
 		ESP_LOGE(TAG, "Send file: Wrong argument");
 		return;	
@@ -306,11 +306,6 @@ void telegram_send_file_full(void *teleCtx_ptr, telegram_int_t chat_id, char *ca
 			break;
 
 		default:
-			if (filename == NULL)
-			{
-				ESP_LOGE(TAG, "Filename required!");
-				return;	
-			}
 			path = telegram_make_method_path(TELEGRAM_SEND_FILE, teleCtx->token, 0, 0, NULL);
 			break;
 	}
@@ -321,7 +316,7 @@ void telegram_send_file_full(void *teleCtx_ptr, telegram_int_t chat_id, char *ca
 		return;
 	}
 
-	overhead = calloc(sizeof(char), ((caption!=NULL)?strlen(caption):0) + ((filename != NULL)?strlen(filename):0) + TELEGRAM_INT_MAX_VAL_LENGTH 
+	overhead = calloc(sizeof(char), ((caption!=NULL)?strlen(caption):0) + strlen(filename) + TELEGRAM_INT_MAX_VAL_LENGTH 
 		+ 3 * strlen(TELEGRAM_BOUNDARY_CONTENT_FMT) + 2 * strlen(TELEGRAM_BOUNDARY"\r\n") + strlen(TELEGRAM_BOUNDARY_FTR));
 	if (overhead == NULL)
 	{
@@ -340,15 +335,15 @@ void telegram_send_file_full(void *teleCtx_ptr, telegram_int_t chat_id, char *ca
 	switch(file_type)
 	{
 		case TELEGRAM_PHOTO: 
-			sprintf(&overhead[strlen(overhead)], TELEGRAM_BOUNDARY_CONTENT_FMT"\"photo\"\r\n");
+			sprintf(&overhead[strlen(overhead)], TELEGRAM_BOUNDARY_CONTENT_FMT"\"photo\"");
 			break;
 
 		default:
-			sprintf(&overhead[strlen(overhead)], TELEGRAM_BOUNDARY_CONTENT_FMT"\"document\"; filename=\"%s\"\r\n",filename);
+			sprintf(&overhead[strlen(overhead)], TELEGRAM_BOUNDARY_CONTENT_FMT"\"document\"");
 			break;
 	}
 
-	sprintf(&overhead[strlen(overhead)], "Content-Type: application/octet-stream\r\n\r\n");
+	sprintf(&overhead[strlen(overhead)], "; filename=\"%s\"\r\nContent-Type: application/octet-stream\r\n\r\n", filename);
 
 	ctx_e = calloc(1, sizeof(telegram_send_data_e_t));
 	if (!ctx_e)
