@@ -444,15 +444,16 @@ void telegram_get_file(void *teleCtx_ptr, const char *file_id, void *ctx, telegr
 	telegram_wait_mutex((telegram_ctx_t *)teleCtx_ptr);
 	if (file_path == NULL)
 	{
+		telegram_give_mutex((telegram_ctx_t *)teleCtx_ptr);
 		ctx_e.user_cb(TELEGRAM_ERR, ctx_e.teleCtx, ctx_e.user_ctx, NULL);
 		ESP_LOGE(TAG, "Fail to get file path");
 	} else
 	{
 		telegram_io_read_file(file_path, &ctx_e, telegram_io_get_file_cb);
 		free(file_path);
+		telegram_give_mutex((telegram_ctx_t *)teleCtx_ptr);
 		ctx_e.user_cb(TELEGRAM_END, ctx_e.teleCtx, ctx_e.user_ctx, NULL);
 	}
-	telegram_give_mutex((telegram_ctx_t *)teleCtx_ptr);
 }
 
 void telegram_answer_cb_query(void *teleCtx_ptr, const char *cid, const char *text, 
