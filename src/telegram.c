@@ -8,6 +8,8 @@
 #include "telegram_io.h"
 #include "telegram_getter.h"
 
+#define TELEGRAM_DEBUG 0
+
 static const char *TAG="telegram_core";
 
 #define TELEGRAM_BOUNDARY_HDR "----------------------785aad86516cca68"
@@ -53,16 +55,20 @@ static void telegram_give_mutex_func(telegram_ctx_t *ctx)
 	xSemaphoreGive(ctx->sem);
 }
 
+#if TELGRAM_DEBUG == 1
 #define telegram_wait_mutex(x) { \
 	ESP_LOGI(TAG, "Taking mutex %s", __func__); \
 	telegram_wait_mutex_func(x, (char *)__func__); \
 }
-
 #define telegram_give_mutex(x) { \
 	ESP_LOGI(TAG, "Give mutex %s", __func__); \
 	telegram_give_mutex_func(x); \
 }
 
+#else 
+#define telegram_wait_mutex(x) telegram_wait_mutex_func(x, (char *)__func__);
+#define telegram_give_mutex(x) telegram_give_mutex_func(x); 
+#endif
 
 
 static void telegram_process_message_int_cb(void *hnd, telegram_update_t *upd)
