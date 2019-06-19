@@ -28,6 +28,7 @@
 #define TELEGRAM_GET_FILE_FMT TELEGRAM_SERVER"/file/bot%s/%s"
 #define TELEGRAM_GET_FILE_PATH_FMT  TELEGRAM_SERVER"/bot%s/getFile?file_id=%s"
 #define TELEGRAM_SEND_FILE_FMT  TELEGRAM_SERVER"/bot%s/sendDocument"
+#define TELEGRAM_SEND_PHOTO_FMT  TELEGRAM_SERVER"/bot%s/sendPhoto"
 #define TELEGRAM_ANSWER_QUERY_FMT  TELEGRAM_SERVER"/bot%s/answerCallbackQuery"
 
 
@@ -905,6 +906,16 @@ char *telegram_make_method_path(const telegram_method_t method_id, const char *t
 				if (str)
 				{
 					sprintf(str, TELEGRAM_SEND_FILE_FMT, token);
+				}
+			}
+			break;
+
+		case TELEGRAM_SEND_PHOTO:
+			{
+				str = calloc(sizeof(char), strlen(TELEGRAM_SEND_PHOTO_FMT) + strlen(token) + 1);
+				if (str)
+				{
+					sprintf(str, TELEGRAM_SEND_PHOTO_FMT, token);
 				}
 			}
 			break;

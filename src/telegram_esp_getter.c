@@ -65,7 +65,7 @@ void *telegram_getter_init(telegram_getMessages_t onGetMessages, void *ctx)
         	pdTRUE, teleCtx, telegram_timer_cb);
 		xTimerStart(teleCtx->timer, 0);
 #endif
-		xTaskCreate(&telegram_task, "telegram_task", 8192, teleCtx, 5, &teleCtx->task);
+		xTaskCreate(&telegram_task, "telegram_task", 5120, teleCtx, 5, &teleCtx->task);
 	}
 
 	return teleCtx;
