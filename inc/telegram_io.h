@@ -4,7 +4,7 @@
 #define TELEGRAM_LONG_POLLING (1)
 #define TELGRAM_DBG 0
 
-#define TELEGRAM_MAX_BUFFER 1024U
+#define TELEGRAM_MAX_BUFFER 8192U
 
 typedef struct
 {
