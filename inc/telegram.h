@@ -43,6 +43,7 @@ void telegram_get_file(void *teleCtx_ptr, const char *file_id, void *ctx, telegr
 
 void telegram_kbrd(void *teleCtx_ptr, telegram_int_t chat_id, const char *message, telegram_kbrd_t *kbrd);
 void telegram_send_text_message(void *teleCtx_ptr, telegram_int_t chat_id, const char *message);
+void telegram_send_text(void *teleCtx_ptr, telegram_int_t chat_id, telegram_kbrd_t *kbrd, const char *fmt, ...);
 
 void telegram_stop(void *teleCtx);
 char *telegram_get_file_path(void *teleCtx_ptr, const char *file_id);

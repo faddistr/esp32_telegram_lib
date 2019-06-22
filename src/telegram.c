@@ -229,6 +229,29 @@ void telegram_send_text_message(void *teleCtx_ptr, telegram_int_t chat_id, const
 	telegram_send_message(teleCtx_ptr, chat_id, message, NULL);
 }
 
+void telegram_send_text(void *teleCtx_ptr, telegram_int_t chat_id, telegram_kbrd_t *kbrd, const char *fmt, ...)
+{
+	char *str;
+	size_t len;
+	va_list ptr;
+
+	va_start(ptr, fmt);
+	len = vsnprintf(NULL, 0, fmt, ptr) + 1;
+	str = malloc(len);
+
+	if (str != NULL)
+	{
+		vsprintf(str, fmt, ptr);
+		telegram_send_message(teleCtx_ptr, chat_id, str, kbrd);
+		free(str);
+	} else
+	{
+		ESP_LOGE(TAG, "No mem!");
+	}
+
+	va_end(ptr);
+}
+
 char *telegram_get_file_path(void *teleCtx_ptr, const char *file_id)
 {
 	char *buffer = NULL;
