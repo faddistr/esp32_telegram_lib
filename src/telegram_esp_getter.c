@@ -80,11 +80,10 @@ void telegram_getter_stop(void *teleCtx_ptr)
 		return;
 	}
 
-	teleCtx->stop = true;	
+
 #if TELEGRAM_LONG_POLLING != 1
 	xTimerStop(teleCtx->timer, 0);
 #endif
-	vTaskDelay(portTICK_RATE_MS);
 	vTaskDelete(teleCtx->task);
 #if TELEGRAM_LONG_POLLING != 1
 	xTimerDelete(teleCtx->timer, 0);
