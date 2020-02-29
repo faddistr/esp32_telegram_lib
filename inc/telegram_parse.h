@@ -116,7 +116,7 @@ typedef struct
 	telegram_chat_message_t      *message;             /** Opt. New incoming message */
 	telegram_chat_message_t      *edited_message;      /** Opt. New version of a message that is known to the bot and was edited */
 	telegram_chat_message_t      *channel_post;        /** Opt. Message that was send to user */
-	telegram_chat_message_t		 *edited_channel_post; /** Opt. New version of a channel post that is known to the bot and was edited */
+	telegram_chat_message_t	     *edited_channel_post; /** Opt. New version of a channel post that is known to the bot and was edited */
 	telegram_chat_callback_t     *callback_query;      /** New incoming callback query */
 } telegram_update_t;
 

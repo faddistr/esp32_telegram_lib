@@ -1,5 +1,7 @@
 #ifndef TELEGRAM_IO_H
 #define TELEGRAM_IO_H
+#include <stdint.h>
+#include <stdbool.h>
 
 #define TELEGRAM_LONG_POLLING (1)
 #define TELGRAM_DBG 0

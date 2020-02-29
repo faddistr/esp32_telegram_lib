@@ -980,7 +980,7 @@ char *telegram_parse_file_path(const char *buffer)
 	json = cJSON_Parse(buffer);
 	if (json == NULL)
 	{
-		return NULL;
+	    return NULL;
 	}
 
 	ok_item = cJSON_GetObjectItem(json, "ok");

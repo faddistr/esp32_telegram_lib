@@ -45,12 +45,12 @@ void telegram_kbrd(void *teleCtx_ptr, telegram_int_t chat_id, const char *messag
 void telegram_send_text_message(void *teleCtx_ptr, telegram_int_t chat_id, const char *message);
 void telegram_send_text(void *teleCtx_ptr, telegram_int_t chat_id, telegram_kbrd_t *kbrd, const char *fmt, ...);
 
-void telegram_stop(void *teleCtx);
 char *telegram_get_file_path(void *teleCtx_ptr, const char *file_id);
-
-
-void *telegram_init(const char *token, uint32_t message_limit, telegram_on_msg_cb_t cb);
 
 void telegram_answer_cb_query(void *teleCtx_ptr, const char *cid, const char *text, 
 	bool show_alert, const char *url, telegram_int_t cache_time);
+
+void *telegram_init(const char *token, uint32_t message_limit, telegram_on_msg_cb_t cb);
+void telegram_stop(void *teleCtx);
+
 #endif // TELEGRAM_H

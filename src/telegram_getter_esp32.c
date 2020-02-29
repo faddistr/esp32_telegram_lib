@@ -1,6 +1,6 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/timers.h>
-#include <esp_log.h>
+#include "telegram_log.h"
 #include "telegram_getter.h"
 
 static const char *TAG="telegram_esp_get";
@@ -29,7 +29,7 @@ static void telegram_task(void * param)
 {
 	telegram_getter_t *teleCtx = (telegram_getter_t *)param;
 
-    ESP_LOGI(TAG, "Start... thread");
+	TELEGRAM_LOGI(TAG, "Start... thread");
 	while(!teleCtx->stop)
 	{
 #if TELEGRAM_LONG_POLLING == 1
